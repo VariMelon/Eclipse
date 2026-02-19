@@ -137,7 +137,12 @@ Optional:
   - `tests/pages/signup.test.ts`
   - `tests/pages/signin.test.ts`
   - `tests/app/campaign-members.test.ts`
-- Current local test status: PASS (21 tests passing, including validation/range and error-envelope paths).
+- `tests/app/campaigns.test.ts`
+- `tests/app/characters.test.ts`
+- `tests/app/notes.test.ts`
+- `tests/app/friends.test.ts`
+- `tests/app/users.test.ts`
+- Current local test status: PASS (49 tests passing, including app route validation/authorization coverage).
 
 ## API Error Envelope Status
 - App API routes now use shared error helpers for `400/401/403/404/405/409` paths where applicable.
