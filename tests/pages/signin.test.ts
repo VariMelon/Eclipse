@@ -1,0 +1,121 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createMocks } from 'node-mocks-http';
+import type { NextApiRequest, NextApiResponse } from 'next';
+
+const {
+  prismaMock,
+  validateUserInputMock,
+  consumeRateLimitMock,
+  getNodeRequestIpMock,
+  normalizeIdentifierMock,
+  compareMock,
+} = vi.hoisted(() => ({
+  prismaMock: {
+    user: {
+      findUnique: vi.fn(),
+    },
+  },
+  validateUserInputMock: vi.fn(),
+  consumeRateLimitMock: vi.fn(),
+  getNodeRequestIpMock: vi.fn(),
+  normalizeIdentifierMock: vi.fn(),
+  compareMock: vi.fn(),
+}));
+
+vi.mock('@/lib/prisma', () => ({
+  default: prismaMock,
+}));
+
+vi.mock('@/lib/inputValidation', () => ({
+  validateUserInput: validateUserInputMock,
+}));
+
+vi.mock('@/lib/rateLimit', () => ({
+  consumeRateLimit: consumeRateLimitMock,
+  getNodeRequestIp: getNodeRequestIpMock,
+  normalizeIdentifier: normalizeIdentifierMock,
+}));
+
+vi.mock('bcryptjs', () => ({
+  default: {
+    compare: compareMock,
+  },
+}));
+
+import handler from '@/pages/api/signin';
+
+function createReqRes(method: string, body: unknown) {
+  return createMocks<NextApiRequest, NextApiResponse>({
+    method,
+    body,
+  });
+}
+
+describe('pages/api/signin', () => {
+  beforeEach(() => {
+    validateUserInputMock.mockReturnValue({ ok: true });
+    getNodeRequestIpMock.mockReturnValue('127.0.0.1');
+    normalizeIdentifierMock.mockImplementation((value: string) => value.toLowerCase());
+
+    consumeRateLimitMock
+      .mockReturnValueOnce({ allowed: true, remaining: 29, resetAt: Date.now() + 900000, retryAfterSeconds: 0, limit: 30 })
+      .mockReturnValueOnce({ allowed: true, remaining: 9, resetAt: Date.now() + 900000, retryAfterSeconds: 0, limit: 10 });
+
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'new@example.com',
+      name: 'newuser',
+      password: 'hashed-password',
+    });
+    compareMock.mockResolvedValue(true);
+  });
+
+  it('returns user profile on valid credentials', async () => {
+    const { req, res } = createReqRes('POST', {
+      email: 'new@example.com',
+      password: 'Password123!',
+    });
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(res._getJSONData()).toMatchObject({
+      id: 'user-1',
+      email: 'new@example.com',
+      name: 'newuser',
+    });
+  });
+
+  it('returns 429 when email rate limit is exceeded', async () => {
+    consumeRateLimitMock.mockReset();
+    consumeRateLimitMock
+      .mockReturnValueOnce({ allowed: true, remaining: 29, resetAt: Date.now() + 900000, retryAfterSeconds: 0, limit: 30 })
+      .mockReturnValueOnce({ allowed: false, remaining: 0, resetAt: Date.now() + 60000, retryAfterSeconds: 60, limit: 10 });
+
+    const { req, res } = createReqRes('POST', {
+      email: 'new@example.com',
+      password: 'Password123!',
+    });
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(429);
+    expect(res._getJSONData()).toMatchObject({
+      error: 'Too many signin attempts for this account. Please try again later.',
+    });
+  });
+
+  it('returns 401 for wrong password', async () => {
+    compareMock.mockResolvedValueOnce(false);
+
+    const { req, res } = createReqRes('POST', {
+      email: 'new@example.com',
+      password: 'wrong-pass',
+    });
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(401);
+    expect(res._getJSONData()).toMatchObject({ error: 'Invalid credentials' });
+  });
+});

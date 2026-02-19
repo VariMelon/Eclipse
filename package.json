@@ -8,6 +8,8 @@
     "start": "next start",
     "postinstall": "prisma generate",
     "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "preflight": "npm run lint && npm run build",
     "health:api": "node scripts/api-healthcheck.mjs",
     "preflight:full": "npm run preflight && npm run health:api"
@@ -31,7 +33,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "node-mocks-http": "^1.17.2",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.0.18"
   }
 }

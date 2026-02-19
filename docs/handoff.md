@@ -124,6 +124,14 @@ Optional:
 - Production rate-limit check: PASS (`POST /api/signin` enforces limiter and returns `429` with `Retry-After` and `X-RateLimit-*` headers after repeated attempts).
 - Release verification timestamp (UTC): `2026-02-19T20:42:40Z`.
 
+## Test Coverage (Current)
+- Test runner: Vitest (`npm run test`).
+- Added backend tests:
+  - `tests/pages/signup.test.ts`
+  - `tests/pages/signin.test.ts`
+  - `tests/app/campaign-members.test.ts`
+- Current local test status: PASS (9 tests passing).
+
 ## Temporary Testing Resources (Status)
 - Temporary testing surfaces were removed from the production codebase.
 
