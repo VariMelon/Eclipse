@@ -122,6 +122,7 @@ Optional:
 - Production smoke (authenticated flow): PASS (signup, NextAuth session, campaign create, invite member, approve invite, membership verify).
 - Production moderation check: PASS (`POST /api/signup` rejects forbidden characters with `400` and error `Input field 'name' contains forbidden characters.`).
 - Production rate-limit check: PASS (`POST /api/signin` enforces limiter and returns `429` with `Retry-After` and `X-RateLimit-*` headers after repeated attempts).
+- Release verification timestamp (UTC): `2026-02-19T20:42:40Z`.
 
 ## Temporary Testing Resources (Status)
 - Temporary testing surfaces were removed from the production codebase.
