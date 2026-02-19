@@ -34,12 +34,21 @@ const BLOCKED_WORDS = [
   ]),
 ];
 
+const BLOCKED_WORD_PATTERNS = BLOCKED_WORDS.map((word) => {
+  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = escaped.replace(/\s+/g, "\\s+");
+  return {
+    word,
+    regex: new RegExp(`(^|[^a-z0-9])${pattern}($|[^a-z0-9])`, "i"),
+  };
+});
+
 function findBlockedWord(value: string): string | null {
   const normalized = value.toLowerCase();
 
-  for (const blockedWord of BLOCKED_WORDS) {
-    if (normalized.includes(blockedWord)) {
-      return blockedWord;
+  for (const entry of BLOCKED_WORD_PATTERNS) {
+    if (entry.regex.test(normalized)) {
+      return entry.word;
     }
   }
 

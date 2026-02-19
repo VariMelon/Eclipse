@@ -21,13 +21,20 @@ let redisClient: Redis | null = null;
 function getRedisClient() {
   if (redisClient) return redisClient;
 
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const rawUrl = process.env.UPSTASH_REDIS_REST_URL;
+  const rawToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const url = rawUrl?.trim();
+  const token = rawToken?.trim();
 
   if (!url || !token) return null;
+  if (/\s/.test(url) || /\s/.test(token)) return null;
 
-  redisClient = new Redis({ url, token });
-  return redisClient;
+  try {
+    redisClient = new Redis({ url, token });
+    return redisClient;
+  } catch {
+    return null;
+  }
 }
 
 function cleanupExpired(now: number) {

@@ -6,7 +6,7 @@
 - Dashboard is protected by session and uses signed-in user identity.
 - Username is required and unique at schema + DB migration level.
 - Input validation is centralized and applied to API create/auth endpoints.
-- Blocked-words moderation list is active and cleaned.
+- Blocked-words moderation list is active and uses whole-word matching.
 - App API routes are now session-protected and resource lists are scoped to authorized user/campaign access.
 - Campaign membership workflows are implemented (invite, approve, decline, remove, change-role).
 - Auth routes are rate-limited (signup/signin + NextAuth credentials callback).
@@ -71,9 +71,13 @@
   - `app/api/auth/[...nextauth]` credentials callback now enforces per-IP limits
   - Optional distributed backing via Upstash (`UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`)
 14. Deployed to Vercel production and verified core route reachability.
+15. Fixed blocked-term false positives by matching whole words instead of substrings.
+16. Hardened Upstash Redis client init to ignore whitespace/invalid env values and fall back safely.
+17. Updated production security smoke script to use JSON HttpClient payloads and richer output.
 
 ## Moderation / Validation Behavior
 - Validation entrypoint: `validateUserInput()` in `lib/inputValidation.ts`.
+- Blocked-term detection is whole-word style to avoid false positives (e.g., `hello`, `crass`).
 - Blocked terms sources:
   1. `config/blocked-words.txt` (one term per line, `#` comments allowed)
   2. `.env` `INPUT_BLACKLIST_WORDS` (comma-separated)
@@ -123,8 +127,9 @@ Optional:
 - Production smoke (GET reachability): PASS (`/`, `/auth/signup`, `/auth/signin`, `/dashboard` redirect, `/api/signup`, `/api/signin`, `/api/users` unauthorized).
 - Production smoke (authenticated flow): PASS (signup, NextAuth session, campaign create, invite member, approve invite, membership verify).
 - Production moderation check: PASS (`POST /api/signup` rejects forbidden characters with `400` and error `Input field 'name' contains forbidden characters.`).
-- Production rate-limit check: PASS (`POST /api/signin` enforces limiter and returns `429` with `Retry-After` and `X-RateLimit-*` headers after repeated attempts).
-- Release verification timestamp (UTC): `2026-02-19T20:42:40Z`.
+- Production rate-limit check: PASS (invalid credentials return `401`, email limiter returns `429` with `Retry-After` after 10 attempts).
+- Production moderation false-positive fix: PASS (`hello` and `crass` no longer blocked by substring matches).
+- Release verification timestamp (UTC): `2026-02-19T21:38:30Z`.
 
 ## Test Coverage (Current)
 - Test runner: Vitest (`npm run test`).
@@ -146,6 +151,11 @@ Optional:
   - characters (`name` length, `level` range)
   - notes (`content` length, alias count/length)
   - friends (`receiverId` UUID format)
+
+## Recent Fixes
+- Upstash Redis env trimming and guardrails to avoid production 500s on whitespace values.
+- Security smoke script updated to use JSON HttpClient requests and emit bodies/headers.
+- Blocked-word detection now avoids substring false positives.
 
 ## Temporary Testing Resources (Status)
 - Temporary testing surfaces were removed from the production codebase.
