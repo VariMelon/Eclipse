@@ -164,7 +164,7 @@ Use this in a fresh chat to save tokens:
 
 ## Before New Chat (Quick Checklist)
 - Current local baseline: `npm run preflight` passes (lint + build clean).
-- Git linkage: optional for now (do not block on git checks in this workspace).
+- Git linkage: configured (`main` tracking `origin/main` at `https://github.com/VariMelon/Eclipse.git`; baseline commit `59b66b9`).
 - Deployment execution status: not yet deployed to Vercel (run checklist above when ready).
 - Core completed areas: Prisma/Neon setup, auth flow, protected dashboard, unique usernames, centralized input validation, blocked words workflow, session-scoped API authorization.
 - Highest-priority unfinished work: campaign membership management and explicit role-based mutation controls.
