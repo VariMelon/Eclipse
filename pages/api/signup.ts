@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import { validateUserInput } from '@/lib/inputValidation';
+import { isStringLengthBetween, isValidEmail, validateUserInput } from '@/lib/inputValidation';
 import { consumeRateLimit, getNodeRequestIp, normalizeIdentifier } from '@/lib/rateLimit';
 
 const SIGNUP_WINDOW_MS = 15 * 60 * 1000;
@@ -40,9 +40,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: validation.error });
   }
 
-  const { email, password, name } = req.body;
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
   if (!email || !password || !name) {
     return res.status(400).json({ error: 'Email, password, and username are required' });
+  }
+
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ error: 'Email format is invalid.' });
+  }
+
+  if (!isStringLengthBetween(password, 8, 128)) {
+    return res.status(400).json({ error: 'Password must be between 8 and 128 characters.' });
+  }
+
+  if (!isStringLengthBetween(name, 3, 32)) {
+    return res.status(400).json({ error: 'Username must be between 3 and 32 characters.' });
   }
 
   const emailRateLimit = consumeRateLimit(

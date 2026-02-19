@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { validateUserInput } from '@/lib/inputValidation';
+import { isStringLengthBetween, validateUserInput } from '@/lib/inputValidation';
 import { badRequestResponse, CAMPAIGN_ROLE, forbiddenResponse, getCampaignAccessWhere, getSessionUserId, hasCampaignRole, unauthorizedResponse } from '@/lib/apiAuth';
 
 export async function GET() {
@@ -43,8 +43,12 @@ export async function POST(req: NextRequest) {
     return badRequestResponse('Character name is required.');
   }
 
-  if (!Number.isInteger(level) || level < 1) {
-    return badRequestResponse('Character level must be a positive integer.');
+  if (!isStringLengthBetween(name, 2, 80)) {
+    return badRequestResponse('Character name must be between 2 and 80 characters.');
+  }
+
+  if (!Number.isInteger(level) || level < 1 || level > 100) {
+    return badRequestResponse('Character level must be an integer between 1 and 100.');
   }
 
   if (typeof stats !== 'object' || stats === null || Array.isArray(stats)) {

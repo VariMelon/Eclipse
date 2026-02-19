@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { validateUserInput } from '@/lib/inputValidation';
+import { isValidUuid, validateUserInput } from '@/lib/inputValidation';
 import {
   badRequestResponse,
   CAMPAIGN_ROLE,
@@ -47,6 +47,10 @@ export async function GET(req: NextRequest) {
   const campaignId = req.nextUrl.searchParams.get('campaignId')?.trim() || '';
   if (!campaignId) {
     return badRequestResponse('campaignId is required.');
+  }
+
+  if (!isValidUuid(campaignId)) {
+    return badRequestResponse('campaignId must be a valid UUID.');
   }
 
   const allowed = await canAccessCampaign(userId, campaignId);
@@ -113,6 +117,10 @@ export async function POST(req: NextRequest) {
 
   if (!campaignId || !invitedUserId) {
     return badRequestResponse('campaignId and userId are required.');
+  }
+
+  if (!isValidUuid(campaignId) || !isValidUuid(invitedUserId)) {
+    return badRequestResponse('campaignId and userId must be valid UUIDs.');
   }
 
   if (invitedUserId === userId) {
@@ -199,6 +207,10 @@ export async function PATCH(req: NextRequest) {
 
   if (!campaignId || !targetUserId) {
     return badRequestResponse('campaignId and userId are required.');
+  }
+
+  if (!isValidUuid(campaignId) || !isValidUuid(targetUserId)) {
+    return badRequestResponse('campaignId and userId must be valid UUIDs.');
   }
 
   if (action === 'approve') {
@@ -334,6 +346,10 @@ export async function DELETE(req: NextRequest) {
 
   if (!campaignId || !targetUserId) {
     return badRequestResponse('campaignId and userId are required.');
+  }
+
+  if (!isValidUuid(campaignId) || !isValidUuid(targetUserId)) {
+    return badRequestResponse('campaignId and userId must be valid UUIDs.');
   }
 
   if (action === 'remove') {

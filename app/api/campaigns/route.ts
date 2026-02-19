@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { validateUserInput } from '@/lib/inputValidation';
+import { isStringLengthBetween, validateUserInput } from '@/lib/inputValidation';
 import { badRequestResponse, getCampaignAccessWhere, getSessionUserId, unauthorizedResponse } from '@/lib/apiAuth';
 
 export async function GET() {
@@ -32,6 +32,10 @@ export async function POST(req: NextRequest) {
   const name = typeof data?.name === 'string' ? data.name.trim() : '';
   if (!name) {
     return badRequestResponse('Campaign name is required.');
+  }
+
+  if (!isStringLengthBetween(name, 3, 80)) {
+    return badRequestResponse('Campaign name must be between 3 and 80 characters.');
   }
 
   const campaign = await prisma.campaign.create({

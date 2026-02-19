@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { validateUserInput } from '@/lib/inputValidation';
+import { isValidUuid, validateUserInput } from '@/lib/inputValidation';
 import { badRequestResponse, conflictResponse, getSessionUserId, unauthorizedResponse } from '@/lib/apiAuth';
 
 export async function GET() {
@@ -36,6 +36,10 @@ export async function POST(req: NextRequest) {
   const receiverId = typeof data?.receiverId === 'string' ? data.receiverId.trim() : '';
   if (!receiverId) {
     return badRequestResponse('receiverId is required.');
+  }
+
+  if (!isValidUuid(receiverId)) {
+    return badRequestResponse('receiverId must be a valid UUID.');
   }
 
   if (receiverId === userId) {

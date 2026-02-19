@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import { validateUserInput } from '@/lib/inputValidation';
+import { isStringLengthBetween, isValidEmail, validateUserInput } from '@/lib/inputValidation';
 import { consumeRateLimit, getNodeRequestIp, normalizeIdentifier } from '@/lib/rateLimit';
 
 const SIGNIN_WINDOW_MS = 15 * 60 * 1000;
@@ -40,9 +40,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: validation.error });
   }
 
-  const { email, password } = req.body;
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
   if (!email || !password) {
     return res.status(400).json({ error: 'Missing fields' });
+  }
+
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ error: 'Email format is invalid.' });
+  }
+
+  if (!isStringLengthBetween(password, 1, 128)) {
+    return res.status(400).json({ error: 'Password must be between 1 and 128 characters.' });
   }
 
   const emailRateLimit = consumeRateLimit(

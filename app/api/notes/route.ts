@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { validateUserInput } from '@/lib/inputValidation';
+import { isStringLengthBetween, validateUserInput } from '@/lib/inputValidation';
 import { badRequestResponse, CAMPAIGN_ROLE, forbiddenResponse, getCampaignAccessWhere, getSessionUserId, hasCampaignRole, unauthorizedResponse } from '@/lib/apiAuth';
 
 export async function GET() {
@@ -44,6 +44,18 @@ export async function POST(req: NextRequest) {
 
   if (!content) {
     return badRequestResponse('Note content is required.');
+  }
+
+  if (!isStringLengthBetween(content, 1, 2000)) {
+    return badRequestResponse('Note content must be between 1 and 2000 characters.');
+  }
+
+  if (aliases.length > 25) {
+    return badRequestResponse('A note can include at most 25 aliases.');
+  }
+
+  if (aliases.some((alias: string) => !isStringLengthBetween(alias, 1, 64))) {
+    return badRequestResponse('Each alias must be between 1 and 64 characters.');
   }
 
   const requestedCampaignId = typeof data?.campaignId === 'string' && data.campaignId.trim() ? data.campaignId.trim() : null;

@@ -7,6 +7,8 @@ type ValidationResult = {
 };
 
 const DANGEROUS_CHARACTER_PATTERN = /[\u0000-\u001F\u007F*%_?]/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function loadBlockedWordsFromFile(): string[] {
   try {
@@ -89,4 +91,16 @@ export function validateUserInput(input: unknown, path = "root"): ValidationResu
   }
 
   return { ok: true };
+}
+
+export function isValidEmail(value: string) {
+  return EMAIL_PATTERN.test(value);
+}
+
+export function isValidUuid(value: string) {
+  return UUID_PATTERN.test(value);
+}
+
+export function isStringLengthBetween(value: string, min: number, max: number) {
+  return value.length >= min && value.length <= max;
 }
