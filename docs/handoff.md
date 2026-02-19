@@ -124,6 +124,42 @@ Optional:
 5. Go back online; confirm navigation recovers and data refreshes.
 6. Validate cached content is appropriate (no sensitive data cached unexpectedly).
 
+## Broader Post-Deploy Validation Checklist
+Prep:
+- Sign in as User A (GM) and User B (player).
+
+Campaigns:
+- Create a campaign as User A.
+- Edit campaign name (if supported) or create a second campaign and verify list/order.
+- Verify User B cannot see campaigns they are not a member of.
+
+Memberships:
+- Invite User B as Player; verify invite appears.
+- Approve invite as User B; verify membership shows as Player.
+- Attempt to change User B role as non-GM (should fail), then as GM (should succeed).
+- Remove User B; verify access is revoked.
+
+Characters:
+- Create a character as User A (no campaign); verify it appears in list.
+- Create a campaign character as User A (GM); verify it appears under campaign.
+- Attempt campaign character creation as User B (non-GM); expect 403.
+- Verify User B only sees owned or campaign-authorized characters.
+
+Notes:
+- Create a personal note (no campaign); verify list.
+- Create a campaign note as GM; verify list for GM and Player.
+- Create a note tied to a campaign character; verify campaign matching rules.
+- Attempt campaign note creation as non-GM; expect 403.
+
+Friends:
+- Send friend request from User A to User B; verify PENDING for both.
+- Attempt duplicate request; expect 409.
+- Verify self-request is rejected (400).
+
+Auth and Rate Limits:
+- Confirm signin/signup still work.
+- Trigger email rate limit on signin (11 attempts) and confirm 429 with headers.
+
 ## Deployment Readiness (Current)
 - Build status: PASS (`npm run build` completed successfully on 2026-02-19).
 - Auth status: PASS (signup/signin API flows verified).
@@ -230,6 +266,7 @@ Use these before pushing/deploying:
 Use this in a fresh chat to save tokens:
 
 "Read `docs/handoff.md` and continue implementation from the Next Recommended Steps section. Prioritize API-side authorization and role-based access for campaign resources."
+"Read `docs/handoff.md` and continue implementation from the Next Recommended Steps section. Focus on offline UX review and the broader post-deploy validation checklist."
 
 ## Before New Chat (Quick Checklist)
 - Current local baseline: `npm run preflight` passes (lint + build clean).
@@ -237,4 +274,4 @@ Use this in a fresh chat to save tokens:
 - Deployment execution status: deployed to Vercel (`https://eclipse-five-wheat.vercel.app`).
 - Core completed areas: Prisma/Neon setup, auth flow, protected dashboard, unique usernames, centralized input validation, blocked words workflow, session-scoped API authorization, membership workflows, role-based mutation controls, and auth rate limiting.
 - Highest-priority unfinished work: deeper post-deploy functional validation + offline UX review.
-- Suggested first task in next chat: run a full manual offline/online transition check (install PWA, go offline, navigate, return online).
+- Suggested first task in next chat: run the Offline UX Review Steps and then the Broader Post-Deploy Validation Checklist.
