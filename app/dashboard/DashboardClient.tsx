@@ -5,9 +5,16 @@ import { FormEvent, useEffect, useState } from "react";
 type Campaign = { id: string; name: string; createdBy: string };
 type Character = { id: string; name: string; userId: string; level: number };
 type Note = { id: string; content: string; aliases: string[] };
-type Friend = { id: string; requesterId: string; receiverId: string; status: string };
+type Friend = {
+  id: string;
+  requesterId: string;
+  receiverId: string;
+  requesterName?: string | null;
+  receiverName?: string | null;
+  status: string;
+};
 
-export default function DashboardClient({ username }: { username: string }) {
+export default function DashboardClient({ username, userId }: { username: string; userId: string }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [characters, setCharacters] = useState<Character[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -19,7 +26,8 @@ export default function DashboardClient({ username }: { username: string }) {
   const [characterLevel, setCharacterLevel] = useState(1);
   const [noteContent, setNoteContent] = useState("");
   const [noteAliases, setNoteAliases] = useState("");
-  const [friendReceiverId, setFriendReceiverId] = useState("");
+  const [friendReceiverName, setFriendReceiverName] = useState("");
+  const [selectedCampaignId, setSelectedCampaignId] = useState("");
 
   async function loadAll() {
     setError("");
@@ -116,14 +124,45 @@ export default function DashboardClient({ username }: { username: string }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        receiverId: friendReceiverId,
+        username: friendReceiverName,
       }),
     });
     if (!res.ok) {
       setError("Failed to create friend request.");
       return;
     }
-    setFriendReceiverId("");
+    setFriendReceiverName("");
+    await loadAll();
+  }
+
+  function getFriendTarget(friend: Friend) {
+    const isRequester = friend.requesterId === userId;
+    return {
+      id: isRequester ? friend.receiverId : friend.requesterId,
+      name: isRequester ? friend.receiverName : friend.requesterName,
+    };
+  }
+
+  async function addFriendToCampaign(friend: Friend) {
+    if (!selectedCampaignId) {
+      setError("Select a campaign first.");
+      return;
+    }
+    setError("");
+    const target = getFriendTarget(friend);
+    const res = await fetch("/api/campaigns/members", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        campaignId: selectedCampaignId,
+        userId: target.id,
+        role: "PLAYER",
+      }),
+    });
+    if (!res.ok) {
+      setError("Failed to add friend to campaign.");
+      return;
+    }
     await loadAll();
   }
 
@@ -195,17 +234,43 @@ export default function DashboardClient({ username }: { username: string }) {
         <h2>Friends</h2>
         <form onSubmit={createFriend} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
           <input
-            value={friendReceiverId}
-            onChange={(e) => setFriendReceiverId(e.target.value)}
-            placeholder="Receiver userId"
+            value={friendReceiverName}
+            onChange={(e) => setFriendReceiverName(e.target.value)}
+            placeholder="Friend username"
             required
           />
           <button type="submit">Create</button>
         </form>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <select
+            value={selectedCampaignId}
+            onChange={(e) => setSelectedCampaignId(e.target.value)}
+            style={{ minWidth: 220 }}
+          >
+            <option value="">Select campaign</option>
+            {campaigns
+              .filter((campaign) => campaign.createdBy === userId)
+              .map((campaign) => (
+                <option key={campaign.id} value={campaign.id}>
+                  {campaign.name}
+                </option>
+              ))}
+          </select>
+          <span style={{ fontSize: 12, color: "#666" }}>
+            Invite friends to campaigns you created.
+          </span>
+        </div>
         <ul>
           {friends.map((friend) => (
             <li key={friend.id}>
-              {friend.requesterId} → {friend.receiverId} ({friend.status})
+              {getFriendTarget(friend).name || getFriendTarget(friend).id}
+              <button
+                type="button"
+                onClick={() => addFriendToCampaign(friend)}
+                style={{ marginLeft: 8 }}
+              >
+                Add to campaign
+              </button>
             </li>
           ))}
         </ul>

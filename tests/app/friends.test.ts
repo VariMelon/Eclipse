@@ -12,6 +12,8 @@ const {
     friend: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
+      update: vi.fn(),
       create: vi.fn(),
     },
     user: {
@@ -42,11 +44,21 @@ vi.mock('@/lib/apiAuth', () => ({
   unauthorizedResponse: () => NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
 }));
 
-import { GET, POST } from '@/app/api/friends/route';
+import { GET, PATCH, POST } from '@/app/api/friends/route';
 
 function jsonRequest(body: unknown) {
   return new NextRequest('http://localhost/api/friends', {
     method: 'POST',
+    body: JSON.stringify(body),
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+}
+
+function jsonPatchRequest(body: unknown) {
+  return new NextRequest('http://localhost/api/friends', {
+    method: 'PATCH',
     body: JSON.stringify(body),
     headers: {
       'Content-Type': 'application/json',
@@ -64,11 +76,18 @@ describe('app/api/friends', () => {
     prismaMock.user.findUnique.mockResolvedValue({ id: 'user-2' });
     prismaMock.user.findFirst.mockResolvedValue({ id: 'user-2' });
     prismaMock.friend.findFirst.mockResolvedValue(null);
+    prismaMock.friend.findUnique.mockResolvedValue({ id: 'friend-1', receiverId: 'user-1', status: 'PENDING' });
+    prismaMock.friend.update.mockResolvedValue({
+      id: 'friend-1',
+      requesterId: 'user-2',
+      receiverId: 'user-1',
+      status: 'ACCEPTED',
+    });
     prismaMock.friend.create.mockResolvedValue({
       id: 'friend-1',
       requesterId: 'user-1',
       receiverId: 'user-2',
-      status: 'PENDING',
+      status: 'ACCEPTED',
     });
   });
 
@@ -140,9 +159,28 @@ describe('app/api/friends', () => {
       id: 'friend-1',
       requesterId: 'user-1',
       receiverId: 'user-2',
-      status: 'PENDING',
+      status: 'ACCEPTED',
     });
     expect(prismaMock.user.findFirst).toHaveBeenCalled();
+  });
+
+  it('returns 400 when patch action is invalid', async () => {
+    const response = await PATCH(jsonPatchRequest({ action: 'bad', friendId: 'friend-1' }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'Invalid action. Supported actions are accept and decline.',
+    });
+  });
+
+  it('accepts a pending friend request', async () => {
+    const response = await PATCH(jsonPatchRequest({ action: 'accept', friendId: 'friend-1' }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      id: 'friend-1',
+      status: 'ACCEPTED',
+    });
   });
 
   it('returns 409 when relation already exists', async () => {
@@ -164,7 +202,7 @@ describe('app/api/friends', () => {
       id: 'friend-1',
       requesterId: 'user-1',
       receiverId: 'user-2',
-      status: 'PENDING',
+      status: 'ACCEPTED',
     });
   });
 });

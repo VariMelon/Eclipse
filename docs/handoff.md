@@ -176,8 +176,8 @@ Auth and Rate Limits:
 - Production rate-limit check: PASS (invalid credentials return `401`, email limiter returns `429` with `Retry-After` after 10 attempts).
 - Production moderation false-positive fix: PASS (`hello` and `crass` no longer blocked by substring matches).
 - Production PWA check: PASS (`/manifest.webmanifest`, `/sw.js`, and `/offline` respond with 200).
-- Production friends add: PASS (friend requests can be created by username or receiverId).
-- Release verification timestamp (UTC): `2026-02-19T22:03:30Z`.
+- Production friends add: PASS (friend relationships can be created by username or receiverId; no pending state).
+- Release verification timestamp (UTC): `2026-02-19T22:36:10Z`.
 
 ## Test Coverage (Current)
 - Test runner: Vitest (`npm run test`).
@@ -211,6 +211,7 @@ Auth and Rate Limits:
 - Blocked-word detection now avoids substring false positives.
 - PWA offline fallback page and cache strategy improvements deployed.
 - Friends API now supports username-based requests.
+- Friends now default to accepted status and can be added to campaigns from the dashboard.
 
 ## Temporary Testing Resources (Status)
 - Temporary testing surfaces were removed from the production codebase.

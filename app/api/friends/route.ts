@@ -16,9 +16,21 @@ export async function GET() {
         { receiverId: userId },
       ],
     },
+    include: {
+      requester: { select: { id: true, name: true } },
+      receiver: { select: { id: true, name: true } },
+    },
   });
+  const normalized = friends.map((friend) => ({
+    id: friend.id,
+    requesterId: friend.requesterId,
+    receiverId: friend.receiverId,
+    status: friend.status,
+    requesterName: friend.requester?.name ?? null,
+    receiverName: friend.receiver?.name ?? null,
+  }));
 
-  return NextResponse.json(friends);
+  return NextResponse.json(normalized);
 }
 
 export async function POST(req: NextRequest) {
@@ -93,9 +105,62 @@ export async function POST(req: NextRequest) {
     data: {
       requesterId: userId,
       receiverId,
-      status: 'PENDING',
+      status: 'ACCEPTED',
     },
   });
 
   return NextResponse.json(friend, { status: 201 });
+}
+
+export async function PATCH(req: NextRequest) {
+  const userId = await getSessionUserId();
+  if (!userId) {
+    return unauthorizedResponse();
+  }
+
+  const data = await req.json();
+  const validation = validateUserInput(data);
+  if (!validation.ok) {
+    return badRequestResponse(validation.error || 'Invalid input');
+  }
+
+  const action = typeof data?.action === 'string' ? data.action.trim().toLowerCase() : '';
+  const friendId = typeof data?.friendId === 'string' ? data.friendId.trim() : '';
+
+  if (!friendId) {
+    return badRequestResponse('friendId is required.');
+  }
+
+  if (!isValidUuid(friendId)) {
+    return badRequestResponse('friendId must be a valid UUID.');
+  }
+
+  if (action !== 'accept' && action !== 'decline') {
+    return badRequestResponse('Invalid action. Supported actions are accept and decline.');
+  }
+
+  const existing = await prisma.friend.findUnique({
+    where: { id: friendId },
+    select: { id: true, receiverId: true, status: true },
+  });
+
+  if (!existing) {
+    return badRequestResponse('Friend request does not exist.');
+  }
+
+  if (existing.receiverId !== userId) {
+    return badRequestResponse('Only the receiver can respond to a friend request.');
+  }
+
+  if (existing.status !== 'PENDING') {
+    return badRequestResponse('Friend request has already been resolved.');
+  }
+
+  const nextStatus = action === 'accept' ? 'ACCEPTED' : 'DECLINED';
+  const friend = await prisma.friend.update({
+    where: { id: friendId },
+    data: { status: nextStatus },
+  });
+
+  return NextResponse.json(friend);
 }
