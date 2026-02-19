@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { isValidUuid, validateUserInput } from '@/lib/inputValidation';
+import { isStringLengthBetween, isValidUuid, validateUserInput } from '@/lib/inputValidation';
 import { badRequestResponse, conflictResponse, getSessionUserId, unauthorizedResponse } from '@/lib/apiAuth';
 
 export async function GET() {
@@ -33,13 +33,33 @@ export async function POST(req: NextRequest) {
     return badRequestResponse(validation.error || 'Invalid input');
   }
 
-  const receiverId = typeof data?.receiverId === 'string' ? data.receiverId.trim() : '';
-  if (!receiverId) {
-    return badRequestResponse('receiverId is required.');
+  const receiverIdInput = typeof data?.receiverId === 'string' ? data.receiverId.trim() : '';
+  const usernameInput = typeof data?.username === 'string' ? data.username.trim() : '';
+
+  if (!receiverIdInput && !usernameInput) {
+    return badRequestResponse('receiverId or username is required.');
   }
 
-  if (!isValidUuid(receiverId)) {
-    return badRequestResponse('receiverId must be a valid UUID.');
+  let receiverId = receiverIdInput;
+  if (receiverIdInput) {
+    if (!isValidUuid(receiverIdInput)) {
+      return badRequestResponse('receiverId must be a valid UUID.');
+    }
+  } else {
+    if (!isStringLengthBetween(usernameInput, 3, 32)) {
+      return badRequestResponse('username must be between 3 and 32 characters.');
+    }
+
+    const receiverByName = await prisma.user.findFirst({
+      where: { name: { equals: usernameInput, mode: 'insensitive' } },
+      select: { id: true },
+    });
+
+    receiverId = receiverByName?.id ?? '';
+  }
+
+  if (!receiverId) {
+    return badRequestResponse('Receiver user does not exist.');
   }
 
   if (receiverId === userId) {

@@ -5,6 +5,7 @@ const {
   prismaMock,
   validateUserInputMock,
   isValidUuidMock,
+  isStringLengthBetweenMock,
   getSessionUserIdMock,
 } = vi.hoisted(() => ({
   prismaMock: {
@@ -15,10 +16,12 @@ const {
     },
     user: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
   },
   validateUserInputMock: vi.fn(),
   isValidUuidMock: vi.fn(),
+  isStringLengthBetweenMock: vi.fn(),
   getSessionUserIdMock: vi.fn(),
 }));
 
@@ -29,6 +32,7 @@ vi.mock('@/lib/prisma', () => ({
 vi.mock('@/lib/inputValidation', () => ({
   validateUserInput: validateUserInputMock,
   isValidUuid: isValidUuidMock,
+  isStringLengthBetween: isStringLengthBetweenMock,
 }));
 
 vi.mock('@/lib/apiAuth', () => ({
@@ -54,9 +58,11 @@ describe('app/api/friends', () => {
   beforeEach(() => {
     validateUserInputMock.mockReturnValue({ ok: true });
     isValidUuidMock.mockReturnValue(true);
+    isStringLengthBetweenMock.mockReturnValue(true);
     getSessionUserIdMock.mockResolvedValue('user-1');
     prismaMock.friend.findMany.mockResolvedValue([]);
     prismaMock.user.findUnique.mockResolvedValue({ id: 'user-2' });
+    prismaMock.user.findFirst.mockResolvedValue({ id: 'user-2' });
     prismaMock.friend.findFirst.mockResolvedValue(null);
     prismaMock.friend.create.mockResolvedValue({
       id: 'friend-1',
@@ -75,12 +81,12 @@ describe('app/api/friends', () => {
     await expect(response.json()).resolves.toMatchObject({ error: 'Unauthorized' });
   });
 
-  it('returns 400 when receiverId is missing', async () => {
-    const response = await POST(jsonRequest({ receiverId: '' }));
+  it('returns 400 when receiverId and username are missing', async () => {
+    const response = await POST(jsonRequest({ receiverId: '', username: '' }));
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({
-      error: 'receiverId is required.',
+      error: 'receiverId or username is required.',
     });
   });
 
@@ -113,6 +119,30 @@ describe('app/api/friends', () => {
     await expect(response.json()).resolves.toMatchObject({
       error: 'Receiver user does not exist.',
     });
+  });
+
+  it('returns 400 when username length is invalid', async () => {
+    isStringLengthBetweenMock.mockReturnValueOnce(false);
+
+    const response = await POST(jsonRequest({ username: 'ab' }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'username must be between 3 and 32 characters.',
+    });
+  });
+
+  it('creates a friend request when username is provided', async () => {
+    const response = await POST(jsonRequest({ username: 'UserTwo' }));
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      id: 'friend-1',
+      requesterId: 'user-1',
+      receiverId: 'user-2',
+      status: 'PENDING',
+    });
+    expect(prismaMock.user.findFirst).toHaveBeenCalled();
   });
 
   it('returns 409 when relation already exists', async () => {
