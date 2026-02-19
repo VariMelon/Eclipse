@@ -1,0 +1,417 @@
+import { CampaignInviteStatus, Role } from '@prisma/client';
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { validateUserInput } from '@/lib/inputValidation';
+import {
+  badRequestResponse,
+  canAccessCampaign,
+  forbiddenResponse,
+  getCampaignRole,
+  getSessionUserId,
+  unauthorizedResponse,
+} from '@/lib/apiAuth';
+
+function parseRole(value: unknown): Role | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const normalized = value.trim().toUpperCase();
+  if (normalized === 'GM') return Role.GM;
+  if (normalized === 'MODERATOR') return Role.MODERATOR;
+  if (normalized === 'PLAYER') return Role.PLAYER;
+  return null;
+}
+
+async function parseRequestBody(req: NextRequest) {
+  try {
+    return await req.json();
+  } catch {
+    return {};
+  }
+}
+
+export async function GET(req: NextRequest) {
+  const userId = await getSessionUserId();
+  if (!userId) {
+    return unauthorizedResponse();
+  }
+
+  const campaignId = req.nextUrl.searchParams.get('campaignId')?.trim() || '';
+  if (!campaignId) {
+    return badRequestResponse('campaignId is required.');
+  }
+
+  const allowed = await canAccessCampaign(userId, campaignId);
+  if (!allowed) {
+    return forbiddenResponse('You do not have access to this campaign.');
+  }
+
+  const [members, pendingInvites] = await Promise.all([
+    prisma.campaignMember.findMany({
+      where: { campaignId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { user: { name: 'asc' } },
+    }),
+    prisma.campaignInvite.findMany({
+      where: {
+        campaignId,
+        status: CampaignInviteStatus.PENDING,
+      },
+      include: {
+        invitedUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        invitedBy: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+  ]);
+
+  return NextResponse.json({ members, pendingInvites });
+}
+
+export async function POST(req: NextRequest) {
+  const userId = await getSessionUserId();
+  if (!userId) {
+    return unauthorizedResponse();
+  }
+
+  const data = await parseRequestBody(req);
+  const validation = validateUserInput(data);
+  if (!validation.ok) {
+    return badRequestResponse(validation.error || 'Invalid input');
+  }
+
+  const campaignId = typeof data?.campaignId === 'string' ? data.campaignId.trim() : '';
+  const invitedUserId = typeof data?.userId === 'string' ? data.userId.trim() : '';
+  const requestedRole = parseRole(data?.role) || Role.PLAYER;
+
+  if (!campaignId || !invitedUserId) {
+    return badRequestResponse('campaignId and userId are required.');
+  }
+
+  if (invitedUserId === userId) {
+    return badRequestResponse('You cannot invite yourself.');
+  }
+
+  const actorRole = await getCampaignRole(userId, campaignId);
+  if (!actorRole || (actorRole !== Role.GM && actorRole !== Role.MODERATOR)) {
+    return forbiddenResponse('Only a GM or moderator can invite members.');
+  }
+
+  if (actorRole !== Role.GM && requestedRole !== Role.PLAYER) {
+    return forbiddenResponse('Only a GM can invite members with non-player roles.');
+  }
+
+  const [targetUser, existingMember, existingInvite] = await Promise.all([
+    prisma.user.findUnique({ where: { id: invitedUserId }, select: { id: true } }),
+    prisma.campaignMember.findFirst({ where: { campaignId, userId: invitedUserId }, select: { id: true } }),
+    prisma.campaignInvite.findUnique({
+      where: {
+        campaignId_invitedUserId: {
+          campaignId,
+          invitedUserId,
+        },
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    }),
+  ]);
+
+  if (!targetUser) {
+    return badRequestResponse('Target user does not exist.');
+  }
+
+  if (existingMember) {
+    return NextResponse.json({ error: 'User is already a campaign member.' }, { status: 409 });
+  }
+
+  if (existingInvite?.status === CampaignInviteStatus.PENDING) {
+    return NextResponse.json({ error: 'A pending invite already exists for this user.' }, { status: 409 });
+  }
+
+  const invite = await prisma.campaignInvite.upsert({
+    where: {
+      campaignId_invitedUserId: {
+        campaignId,
+        invitedUserId,
+      },
+    },
+    create: {
+      campaignId,
+      invitedUserId,
+      invitedById: userId,
+      role: requestedRole,
+      status: CampaignInviteStatus.PENDING,
+    },
+    update: {
+      invitedById: userId,
+      role: requestedRole,
+      status: CampaignInviteStatus.PENDING,
+    },
+  });
+
+  return NextResponse.json(invite, { status: 201 });
+}
+
+export async function PATCH(req: NextRequest) {
+  const userId = await getSessionUserId();
+  if (!userId) {
+    return unauthorizedResponse();
+  }
+
+  const data = await parseRequestBody(req);
+  const validation = validateUserInput(data);
+  if (!validation.ok) {
+    return badRequestResponse(validation.error || 'Invalid input');
+  }
+
+  const action = typeof data?.action === 'string' ? data.action.trim().toLowerCase() : '';
+  const campaignId = typeof data?.campaignId === 'string' ? data.campaignId.trim() : '';
+  const targetUserId = typeof data?.userId === 'string' ? data.userId.trim() : '';
+
+  if (!campaignId || !targetUserId) {
+    return badRequestResponse('campaignId and userId are required.');
+  }
+
+  if (action === 'approve') {
+    const invite = await prisma.campaignInvite.findUnique({
+      where: {
+        campaignId_invitedUserId: {
+          campaignId,
+          invitedUserId: targetUserId,
+        },
+      },
+      select: {
+        id: true,
+        role: true,
+        status: true,
+      },
+    });
+
+    if (!invite || invite.status !== CampaignInviteStatus.PENDING) {
+      return NextResponse.json({ error: 'No pending invite found for this user.' }, { status: 404 });
+    }
+
+    const actorRole = await getCampaignRole(userId, campaignId);
+    const canModerate = actorRole === Role.GM || actorRole === Role.MODERATOR;
+    const isSelfApproval = userId === targetUserId;
+
+    if (!isSelfApproval && !canModerate) {
+      return forbiddenResponse('Only the invited user, GM, or moderator can approve this invite.');
+    }
+
+    if (canModerate && actorRole === Role.MODERATOR && invite.role !== Role.PLAYER) {
+      return forbiddenResponse('Moderators can only approve player invites.');
+    }
+
+    const member = await prisma.$transaction(async (tx) => {
+      await tx.campaignInvite.update({
+        where: { id: invite.id },
+        data: { status: CampaignInviteStatus.APPROVED },
+      });
+
+      return tx.campaignMember.upsert({
+        where: {
+          campaignId_userId: {
+            campaignId,
+            userId: targetUserId,
+          },
+        },
+        create: {
+          campaignId,
+          userId: targetUserId,
+          role: invite.role,
+        },
+        update: {
+          role: invite.role,
+        },
+      });
+    });
+
+    return NextResponse.json(member);
+  }
+
+  if (action === 'change-role') {
+    const requestedRole = parseRole(data?.role);
+    if (!requestedRole) {
+      return badRequestResponse('A valid role is required for change-role.');
+    }
+
+    const actorRole = await getCampaignRole(userId, campaignId);
+    if (!actorRole || (actorRole !== Role.GM && actorRole !== Role.MODERATOR)) {
+      return forbiddenResponse('Only a GM or moderator can change member roles.');
+    }
+
+    const [campaign, targetMembership] = await Promise.all([
+      prisma.campaign.findUnique({ where: { id: campaignId }, select: { createdBy: true } }),
+      prisma.campaignMember.findUnique({
+        where: {
+          campaignId_userId: {
+            campaignId,
+            userId: targetUserId,
+          },
+        },
+        select: { role: true },
+      }),
+    ]);
+
+    if (!campaign || !targetMembership) {
+      return NextResponse.json({ error: 'Campaign member not found.' }, { status: 404 });
+    }
+
+    if (campaign.createdBy === targetUserId) {
+      return forbiddenResponse('The campaign owner role cannot be changed.');
+    }
+
+    if (actorRole === Role.MODERATOR) {
+      if (targetMembership.role !== Role.PLAYER || requestedRole !== Role.PLAYER) {
+        return forbiddenResponse('Moderators can only keep players as PLAYER.');
+      }
+    }
+
+    if (requestedRole === Role.GM && actorRole !== Role.GM) {
+      return forbiddenResponse('Only a GM can assign GM role.');
+    }
+
+    const updated = await prisma.campaignMember.update({
+      where: {
+        campaignId_userId: {
+          campaignId,
+          userId: targetUserId,
+        },
+      },
+      data: { role: requestedRole },
+    });
+
+    return NextResponse.json(updated);
+  }
+
+  return badRequestResponse('Invalid action. Supported actions are approve and change-role.');
+}
+
+export async function DELETE(req: NextRequest) {
+  const userId = await getSessionUserId();
+  if (!userId) {
+    return unauthorizedResponse();
+  }
+
+  const data = await parseRequestBody(req);
+  const validation = validateUserInput(data);
+  if (!validation.ok) {
+    return badRequestResponse(validation.error || 'Invalid input');
+  }
+
+  const campaignId = typeof data?.campaignId === 'string' ? data.campaignId.trim() : '';
+  const targetUserId = typeof data?.userId === 'string' ? data.userId.trim() : '';
+  const action = typeof data?.action === 'string' ? data.action.trim().toLowerCase() : 'remove';
+
+  if (!campaignId || !targetUserId) {
+    return badRequestResponse('campaignId and userId are required.');
+  }
+
+  if (action === 'remove') {
+    const actorRole = await getCampaignRole(userId, campaignId);
+    const isSelfRemoval = userId === targetUserId;
+    const canModerate = actorRole === Role.GM || actorRole === Role.MODERATOR;
+
+    if (!isSelfRemoval && !canModerate) {
+      return forbiddenResponse('Only GM/moderator can remove other members.');
+    }
+
+    const [campaign, targetMembership] = await Promise.all([
+      prisma.campaign.findUnique({ where: { id: campaignId }, select: { createdBy: true } }),
+      prisma.campaignMember.findUnique({
+        where: {
+          campaignId_userId: {
+            campaignId,
+            userId: targetUserId,
+          },
+        },
+        select: { role: true },
+      }),
+    ]);
+
+    if (!campaign || !targetMembership) {
+      return NextResponse.json({ error: 'Campaign member not found.' }, { status: 404 });
+    }
+
+    if (campaign.createdBy === targetUserId) {
+      return forbiddenResponse('The campaign owner cannot be removed.');
+    }
+
+    if (canModerate && actorRole === Role.MODERATOR && targetMembership.role !== Role.PLAYER) {
+      return forbiddenResponse('Moderators can only remove players.');
+    }
+
+    await prisma.campaignMember.delete({
+      where: {
+        campaignId_userId: {
+          campaignId,
+          userId: targetUserId,
+        },
+      },
+    });
+
+    await prisma.campaignInvite.deleteMany({
+      where: {
+        campaignId,
+        invitedUserId: targetUserId,
+      },
+    });
+
+    return NextResponse.json({}, { status: 204 });
+  }
+
+  if (action === 'decline') {
+    const invite = await prisma.campaignInvite.findUnique({
+      where: {
+        campaignId_invitedUserId: {
+          campaignId,
+          invitedUserId: targetUserId,
+        },
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    if (!invite || invite.status !== CampaignInviteStatus.PENDING) {
+      return NextResponse.json({ error: 'No pending invite found for this user.' }, { status: 404 });
+    }
+
+    if (userId !== targetUserId) {
+      return forbiddenResponse('Only the invited user can decline this invite.');
+    }
+
+    await prisma.campaignInvite.update({
+      where: { id: invite.id },
+      data: { status: CampaignInviteStatus.DECLINED },
+    });
+
+    return NextResponse.json({}, { status: 204 });
+  }
+
+  return badRequestResponse('Invalid action. Supported actions are remove and decline.');
+}

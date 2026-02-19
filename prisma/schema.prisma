@@ -1,0 +1,167 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  accounts        Account[]
+  sessions        Session[]
+  campaigns       Campaign[]       @relation("CreatedCampaigns")
+  campaignMembers CampaignMember[]
+  campaignInvitesSent CampaignInvite[] @relation("CampaignInviteSender")
+  campaignInvitesReceived CampaignInvite[] @relation("CampaignInviteReceiver")
+  characters      Character[]
+  notes           Note[]
+
+  // Friends relations with explicit names
+  sentFriends     Friend[] @relation("FriendRequester")
+  receivedFriends Friend[] @relation("FriendReceiver")
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Friend {
+  id          String @id @default(uuid())
+  requesterId String
+  receiverId  String
+  status      String
+
+  requester User @relation("FriendRequester", fields: [requesterId], references: [id])
+  receiver  User @relation("FriendReceiver", fields: [receiverId], references: [id])
+}
+
+model Campaign {
+  id        String   @id @default(uuid())
+  name      String
+  createdBy String
+  createdAt DateTime @default(now())
+
+  creator    User             @relation("CreatedCampaigns", fields: [createdBy], references: [id])
+  members    CampaignMember[]
+  invites    CampaignInvite[]
+  characters Character[]
+  notes      Note[]
+}
+
+model CampaignMember {
+  id         String @id @default(uuid())
+  campaignId String
+  userId     String
+  role       Role
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@unique([campaignId, userId])
+}
+
+model CampaignInvite {
+  id            String               @id @default(uuid())
+  campaignId    String
+  invitedUserId String
+  invitedById   String
+  role          Role                 @default(PLAYER)
+  status        CampaignInviteStatus @default(PENDING)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  campaign    Campaign @relation(fields: [campaignId], references: [id])
+  invitedUser User     @relation("CampaignInviteReceiver", fields: [invitedUserId], references: [id])
+  invitedBy   User     @relation("CampaignInviteSender", fields: [invitedById], references: [id])
+
+  @@unique([campaignId, invitedUserId])
+}
+
+enum Role {
+  GM
+  MODERATOR
+  PLAYER
+}
+
+enum CampaignInviteStatus {
+  PENDING
+  APPROVED
+  DECLINED
+}
+
+model Character {
+  id         String   @id @default(uuid())
+  name       String
+  userId     String
+  campaignId String?
+  level      Int
+  stats      Json
+  createdAt  DateTime @default(now())
+
+  user        User         @relation(fields: [userId], references: [id])
+  campaign    Campaign?    @relation(fields: [campaignId], references: [id])
+  levelSheets LevelSheet[]
+  notes       Note[]
+}
+
+model LevelSheet {
+  id          String   @id @default(uuid())
+  characterId String
+  level       Int
+  stats       Json
+  createdAt   DateTime @default(now())
+
+  character Character @relation(fields: [characterId], references: [id])
+}
+
+model Note {
+  id          String   @id @default(uuid())
+  characterId String?
+  campaignId  String?
+  userId      String?
+  content     String
+  aliases     String[]
+  createdAt   DateTime @default(now())
+
+  character Character? @relation(fields: [characterId], references: [id])
+  campaign  Campaign?  @relation(fields: [campaignId], references: [id])
+  user      User?      @relation(fields: [userId], references: [id])
+}
