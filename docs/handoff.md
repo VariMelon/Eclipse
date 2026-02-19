@@ -129,7 +129,7 @@ Optional:
 - Production moderation check: PASS (`POST /api/signup` rejects forbidden characters with `400` and error `Input field 'name' contains forbidden characters.`).
 - Production rate-limit check: PASS (invalid credentials return `401`, email limiter returns `429` with `Retry-After` after 10 attempts).
 - Production moderation false-positive fix: PASS (`hello` and `crass` no longer blocked by substring matches).
-- Release verification timestamp (UTC): `2026-02-19T21:38:30Z`.
+- Release verification timestamp (UTC): `2026-02-19T21:50:10Z`.
 
 ## Test Coverage (Current)
 - Test runner: Vitest (`npm run test`).
