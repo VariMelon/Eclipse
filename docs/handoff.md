@@ -105,20 +105,21 @@ Optional:
 ## Next Recommended Steps
 1. Add automated tests for auth, role authorization, and campaign membership transitions.
 2. Add schema-backed validation constraints per field (length/range) and consistent API error envelopes.
-3. Run full post-deploy smoke/data validation (create account, sign in, campaign/member workflow, moderation checks).
-4. Consider distributed rate limiting (e.g., Redis-backed) for stronger multi-instance production throttling.
-5. Implement PWA deliverables (manifest/service-worker/offline behavior) if included in launch scope.
+3. Consider distributed rate limiting (e.g., Redis-backed) for stronger multi-instance production throttling.
+4. Implement PWA deliverables (manifest/service-worker/offline behavior) if included in launch scope.
 
 ## Deployment Readiness (Current)
 - Build status: PASS (`npm run build` completed successfully on 2026-02-19).
 - Auth status: PASS (signup/signin API flows verified).
 - Session-protected dashboard: PASS.
-- Prisma migration status: PASS (`unique_usernames` + campaign invite/member uniqueness migrations applied locally).
+- Prisma migration status: PASS (`unique_usernames` + campaign invite/member uniqueness migrations applied in production).
 - Input validation/moderation: PASS (centralized validator active).
 - Local preflight scripts: ADDED (`npm run preflight`, `npm run health:api`, `npm run preflight:full`).
 - Preflight execution: PASS (`npm run preflight` runs lint + build successfully with no lint warnings).
 - Vercel deployment status: PASS (production live at `https://eclipse-five-wheat.vercel.app`).
+- Vercel environment status: PASS (`DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL` configured for production).
 - Production smoke (GET reachability): PASS (`/`, `/auth/signup`, `/auth/signin`, `/dashboard` redirect, `/api/signup`, `/api/signin`, `/api/users` unauthorized).
+- Production smoke (authenticated flow): PASS (signup, NextAuth session, campaign create, invite member, approve invite, membership verify).
 
 ## Temporary Testing Resources (Status)
 - Temporary testing surfaces were removed from the production codebase.
@@ -183,4 +184,5 @@ Use this in a fresh chat to save tokens:
 - Deployment execution status: deployed to Vercel (`https://eclipse-five-wheat.vercel.app`).
 - Core completed areas: Prisma/Neon setup, auth flow, protected dashboard, unique usernames, centralized input validation, blocked words workflow, session-scoped API authorization, membership workflows, role-based mutation controls, and auth rate limiting.
 - Highest-priority unfinished work: automated test coverage + deeper post-deploy functional validation + PWA deliverables.
+- Highest-priority unfinished work: automated test coverage + PWA deliverables.
 - Suggested first task in next chat: add API test suite for auth + campaign membership/role authorization and run against local + deployed environments.

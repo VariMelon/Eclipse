@@ -9,16 +9,23 @@ const handler = NextAuth(authOptions);
 const NEXTAUTH_CREDENTIALS_WINDOW_MS = 15 * 60 * 1000;
 const NEXTAUTH_CREDENTIALS_LIMIT_PER_IP = 30;
 
-export async function GET(req: NextRequest) {
-	return handler(req);
+type NextAuthRouteContext = {
+	params: Promise<{
+		nextauth?: string[];
+	}>;
+};
+
+export async function GET(req: NextRequest, context: NextAuthRouteContext) {
+	return handler(req, context);
 }
 
-export async function POST(req: NextRequest) {
-	const pathname = req.nextUrl.pathname;
-	const isCredentialsCallback = pathname.endsWith("/callback/credentials");
+export async function POST(req: NextRequest, context: NextAuthRouteContext) {
+	const params = await context.params;
+	const actionPath = params?.nextauth?.join("/") || "";
+	const isCredentialsCallback = actionPath === "callback/credentials";
 
 	if (!isCredentialsCallback) {
-		return handler(req);
+		return handler(req, context);
 	}
 
 	const ip = getRequestIpFromHeaders(req.headers);
@@ -43,7 +50,7 @@ export async function POST(req: NextRequest) {
 		);
 	}
 
-	const response = await handler(req);
+	const response = await handler(req, context);
 	response.headers.set("X-RateLimit-Limit", String(rateLimit.limit));
 	response.headers.set("X-RateLimit-Remaining", String(rateLimit.remaining));
 	response.headers.set("X-RateLimit-Reset", String(Math.ceil(rateLimit.resetAt / 1000)));
