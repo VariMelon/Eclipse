@@ -12,6 +12,7 @@
 - Auth routes are rate-limited (signup/signin + NextAuth credentials callback).
 - Rate limiting supports distributed storage when Upstash Redis env vars are set.
 - Production deployment is live on Vercel.
+- PWA manifest, service worker, and offline fallback are live.
 
 ## Key Files
 - Prisma client: `lib/prisma.ts`
@@ -74,6 +75,7 @@
 15. Fixed blocked-term false positives by matching whole words instead of substrings.
 16. Hardened Upstash Redis client init to ignore whitespace/invalid env values and fall back safely.
 17. Updated production security smoke script to use JSON HttpClient payloads and richer output.
+18. Added PWA manifest + service worker with offline fallback and cache strategy updates.
 
 ## Moderation / Validation Behavior
 - Validation entrypoint: `validateUserInput()` in `lib/inputValidation.ts`.
@@ -111,8 +113,8 @@ Optional:
 - Pages auth API endpoints are currently used for stable signup/signin testing.
 
 ## Next Recommended Steps
-1. Add automated tests for auth, role authorization, and campaign membership transitions.
-2. Implement PWA deliverables (manifest/service-worker/offline behavior) if included in launch scope.
+1. Confirm offline UX meets product expectations (messaging, cache limits).
+2. Continue deeper post-deploy functional validation.
 
 ## Deployment Readiness (Current)
 - Build status: PASS (`npm run build` completed successfully on 2026-02-19).
@@ -129,7 +131,8 @@ Optional:
 - Production moderation check: PASS (`POST /api/signup` rejects forbidden characters with `400` and error `Input field 'name' contains forbidden characters.`).
 - Production rate-limit check: PASS (invalid credentials return `401`, email limiter returns `429` with `Retry-After` after 10 attempts).
 - Production moderation false-positive fix: PASS (`hello` and `crass` no longer blocked by substring matches).
-- Release verification timestamp (UTC): `2026-02-19T21:50:10Z`.
+- Production PWA check: PASS (`/manifest.webmanifest`, `/sw.js`, and `/offline` respond with 200).
+- Release verification timestamp (UTC): `2026-02-19T21:54:30Z`.
 
 ## Test Coverage (Current)
 - Test runner: Vitest (`npm run test`).
@@ -137,11 +140,11 @@ Optional:
   - `tests/pages/signup.test.ts`
   - `tests/pages/signin.test.ts`
   - `tests/app/campaign-members.test.ts`
-- `tests/app/campaigns.test.ts`
-- `tests/app/characters.test.ts`
-- `tests/app/notes.test.ts`
-- `tests/app/friends.test.ts`
-- `tests/app/users.test.ts`
+  - `tests/app/campaigns.test.ts`
+  - `tests/app/characters.test.ts`
+  - `tests/app/notes.test.ts`
+  - `tests/app/friends.test.ts`
+  - `tests/app/users.test.ts`
 - Current local test status: PASS (49 tests passing, including app route validation/authorization coverage).
 
 ## API Error Envelope Status
@@ -161,6 +164,7 @@ Optional:
 - Upstash Redis env trimming and guardrails to avoid production 500s on whitespace values.
 - Security smoke script updated to use JSON HttpClient requests and emit bodies/headers.
 - Blocked-word detection now avoids substring false positives.
+- PWA offline fallback page and cache strategy improvements deployed.
 
 ## Temporary Testing Resources (Status)
 - Temporary testing surfaces were removed from the production codebase.
@@ -224,6 +228,5 @@ Use this in a fresh chat to save tokens:
 - Git linkage: configured (`main` tracking `origin/main` at `https://github.com/VariMelon/Eclipse.git`; baseline commit available via `git rev-parse --short HEAD`).
 - Deployment execution status: deployed to Vercel (`https://eclipse-five-wheat.vercel.app`).
 - Core completed areas: Prisma/Neon setup, auth flow, protected dashboard, unique usernames, centralized input validation, blocked words workflow, session-scoped API authorization, membership workflows, role-based mutation controls, and auth rate limiting.
-- Highest-priority unfinished work: automated test coverage + deeper post-deploy functional validation + PWA deliverables.
-- Highest-priority unfinished work: automated test coverage + PWA deliverables.
-- Suggested first task in next chat: add API test suite for auth + campaign membership/role authorization and run against local + deployed environments.
+- Highest-priority unfinished work: deeper post-deploy functional validation + offline UX review.
+- Suggested first task in next chat: run a full manual offline/online transition check (install PWA, go offline, navigate, return online).
