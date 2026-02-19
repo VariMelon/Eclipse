@@ -120,6 +120,8 @@ Optional:
 - Vercel environment status: PASS (`DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL` configured for production).
 - Production smoke (GET reachability): PASS (`/`, `/auth/signup`, `/auth/signin`, `/dashboard` redirect, `/api/signup`, `/api/signin`, `/api/users` unauthorized).
 - Production smoke (authenticated flow): PASS (signup, NextAuth session, campaign create, invite member, approve invite, membership verify).
+- Production moderation check: PASS (`POST /api/signup` rejects forbidden characters with `400` and error `Input field 'name' contains forbidden characters.`).
+- Production rate-limit check: PASS (`POST /api/signin` enforces limiter and returns `429` with `Retry-After` and `X-RateLimit-*` headers after repeated attempts).
 
 ## Temporary Testing Resources (Status)
 - Temporary testing surfaces were removed from the production codebase.
