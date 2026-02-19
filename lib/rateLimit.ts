@@ -1,4 +1,5 @@
 import type { NextApiRequest } from 'next';
+import { Redis } from '@upstash/redis';
 
 type RateLimitState = {
   count: number;
@@ -14,6 +15,20 @@ type RateLimitResult = {
 };
 
 const store = new Map<string, RateLimitState>();
+
+let redisClient: Redis | null = null;
+
+function getRedisClient() {
+  if (redisClient) return redisClient;
+
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (!url || !token) return null;
+
+  redisClient = new Redis({ url, token });
+  return redisClient;
+}
 
 function cleanupExpired(now: number) {
   for (const [key, state] of store.entries()) {
@@ -56,6 +71,38 @@ export function consumeRateLimit(key: string, limit: number, windowMs: number): 
     resetAt: state.resetAt,
     limit,
   };
+}
+
+export async function consumeRateLimitAsync(key: string, limit: number, windowMs: number): Promise<RateLimitResult> {
+  const redis = getRedisClient();
+  if (!redis) {
+    return consumeRateLimit(key, limit, windowMs);
+  }
+
+  try {
+    const count = await redis.incr(key);
+    if (count === 1) {
+      await redis.pexpire(key, windowMs);
+    }
+
+    let ttl = await redis.pttl(key);
+    if (ttl < 0) {
+      ttl = windowMs;
+    }
+
+    const remaining = Math.max(0, limit - count);
+    const allowed = count <= limit;
+
+    return {
+      allowed,
+      remaining,
+      retryAfterSeconds: allowed ? 0 : Math.max(1, Math.ceil(ttl / 1000)),
+      resetAt: Date.now() + ttl,
+      limit,
+    };
+  } catch {
+    return consumeRateLimit(key, limit, windowMs);
+  }
 }
 
 export function getNodeRequestIp(req: NextApiRequest): string {

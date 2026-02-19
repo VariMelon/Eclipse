@@ -8,6 +8,7 @@ const {
   isValidEmailMock,
   isStringLengthBetweenMock,
   consumeRateLimitMock,
+  consumeRateLimitAsyncMock,
   getNodeRequestIpMock,
   normalizeIdentifierMock,
   hashMock,
@@ -22,6 +23,7 @@ const {
   isValidEmailMock: vi.fn(),
   isStringLengthBetweenMock: vi.fn(),
   consumeRateLimitMock: vi.fn(),
+  consumeRateLimitAsyncMock: vi.fn(),
   getNodeRequestIpMock: vi.fn(),
   normalizeIdentifierMock: vi.fn(),
   hashMock: vi.fn(),
@@ -39,6 +41,7 @@ vi.mock('@/lib/inputValidation', () => ({
 
 vi.mock('@/lib/rateLimit', () => ({
   consumeRateLimit: consumeRateLimitMock,
+  consumeRateLimitAsync: consumeRateLimitAsyncMock,
   getNodeRequestIp: getNodeRequestIpMock,
   normalizeIdentifier: normalizeIdentifierMock,
 }));
@@ -66,7 +69,7 @@ describe('pages/api/signup', () => {
     getNodeRequestIpMock.mockReturnValue('127.0.0.1');
     normalizeIdentifierMock.mockImplementation((value: string) => value.toLowerCase());
 
-    consumeRateLimitMock
+    consumeRateLimitAsyncMock
       .mockReturnValueOnce({ allowed: true, remaining: 9, resetAt: Date.now() + 900000, retryAfterSeconds: 0, limit: 10 })
       .mockReturnValueOnce({ allowed: true, remaining: 4, resetAt: Date.now() + 900000, retryAfterSeconds: 0, limit: 5 });
 
@@ -166,8 +169,8 @@ describe('pages/api/signup', () => {
   });
 
   it('returns 429 when IP rate limit is exceeded', async () => {
-    consumeRateLimitMock.mockReset();
-    consumeRateLimitMock.mockReturnValueOnce({
+    consumeRateLimitAsyncMock.mockReset();
+    consumeRateLimitAsyncMock.mockReturnValueOnce({
       allowed: false,
       remaining: 0,
       resetAt: Date.now() + 60000,

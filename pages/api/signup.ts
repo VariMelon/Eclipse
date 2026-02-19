@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { isStringLengthBetween, isValidEmail, validateUserInput } from '@/lib/inputValidation';
-import { consumeRateLimit, getNodeRequestIp, normalizeIdentifier } from '@/lib/rateLimit';
+import { consumeRateLimitAsync, getNodeRequestIp, normalizeIdentifier } from '@/lib/rateLimit';
 
 const SIGNUP_WINDOW_MS = 15 * 60 * 1000;
 const SIGNUP_LIMIT_PER_IP = 10;
@@ -27,7 +27,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const ip = getNodeRequestIp(req);
-  const ipRateLimit = consumeRateLimit(`signup:ip:${ip}`, SIGNUP_LIMIT_PER_IP, SIGNUP_WINDOW_MS);
+  const ipRateLimit = await consumeRateLimitAsync(`signup:ip:${ip}`, SIGNUP_LIMIT_PER_IP, SIGNUP_WINDOW_MS);
   setRateLimitHeaders(res, ipRateLimit.limit, ipRateLimit.remaining, ipRateLimit.resetAt);
 
   if (!ipRateLimit.allowed) {
@@ -59,7 +59,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Username must be between 3 and 32 characters.' });
   }
 
-  const emailRateLimit = consumeRateLimit(
+  const emailRateLimit = await consumeRateLimitAsync(
     `signup:email:${normalizeIdentifier(email)}`,
     SIGNUP_LIMIT_PER_EMAIL,
     SIGNUP_WINDOW_MS,

@@ -10,6 +10,7 @@
 - App API routes are now session-protected and resource lists are scoped to authorized user/campaign access.
 - Campaign membership workflows are implemented (invite, approve, decline, remove, change-role).
 - Auth routes are rate-limited (signup/signin + NextAuth credentials callback).
+- Rate limiting supports distributed storage when Upstash Redis env vars are set.
 - Production deployment is live on Vercel.
 
 ## Key Files
@@ -68,6 +69,7 @@
 13. Added auth rate limiting:
   - `pages/api/signup` and `pages/api/signin` now enforce per-IP + per-email windows
   - `app/api/auth/[...nextauth]` credentials callback now enforces per-IP limits
+  - Optional distributed backing via Upstash (`UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`)
 14. Deployed to Vercel production and verified core route reachability.
 
 ## Moderation / Validation Behavior
@@ -87,6 +89,8 @@ Required:
 
 Optional:
 - `INPUT_BLACKLIST_WORDS` (comma-separated additional blocked terms)
+- `UPSTASH_REDIS_REST_URL` (enables distributed rate limiting)
+- `UPSTASH_REDIS_REST_TOKEN`
 
 ## How to Test Quickly
 1. `npm run dev`
@@ -104,8 +108,7 @@ Optional:
 
 ## Next Recommended Steps
 1. Add automated tests for auth, role authorization, and campaign membership transitions.
-2. Consider distributed rate limiting (e.g., Redis-backed) for stronger multi-instance production throttling.
-3. Implement PWA deliverables (manifest/service-worker/offline behavior) if included in launch scope.
+2. Implement PWA deliverables (manifest/service-worker/offline behavior) if included in launch scope.
 
 ## Deployment Readiness (Current)
 - Build status: PASS (`npm run build` completed successfully on 2026-02-19).

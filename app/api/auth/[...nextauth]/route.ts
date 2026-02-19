@@ -2,7 +2,7 @@
 import NextAuth from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
-import { consumeRateLimit, getRequestIpFromHeaders } from "@/lib/rateLimit";
+import { consumeRateLimitAsync, getRequestIpFromHeaders } from "@/lib/rateLimit";
 
 const handler = NextAuth(authOptions);
 
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest, context: NextAuthRouteContext) {
 	}
 
 	const ip = getRequestIpFromHeaders(req.headers);
-	const rateLimit = consumeRateLimit(
+	const rateLimit = await consumeRateLimitAsync(
 		`nextauth:credentials:ip:${ip}`,
 		NEXTAUTH_CREDENTIALS_LIMIT_PER_IP,
 		NEXTAUTH_CREDENTIALS_WINDOW_MS,

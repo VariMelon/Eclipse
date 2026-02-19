@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { isStringLengthBetween, isValidEmail, validateUserInput } from '@/lib/inputValidation';
-import { consumeRateLimit, getNodeRequestIp, normalizeIdentifier } from '@/lib/rateLimit';
+import { consumeRateLimitAsync, getNodeRequestIp, normalizeIdentifier } from '@/lib/rateLimit';
 
 const SIGNIN_WINDOW_MS = 15 * 60 * 1000;
 const SIGNIN_LIMIT_PER_IP = 30;
@@ -27,7 +27,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const ip = getNodeRequestIp(req);
-  const ipRateLimit = consumeRateLimit(`signin:ip:${ip}`, SIGNIN_LIMIT_PER_IP, SIGNIN_WINDOW_MS);
+  const ipRateLimit = await consumeRateLimitAsync(`signin:ip:${ip}`, SIGNIN_LIMIT_PER_IP, SIGNIN_WINDOW_MS);
   setRateLimitHeaders(res, ipRateLimit.limit, ipRateLimit.remaining, ipRateLimit.resetAt);
 
   if (!ipRateLimit.allowed) {
@@ -54,7 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Password must be between 1 and 128 characters.' });
   }
 
-  const emailRateLimit = consumeRateLimit(
+  const emailRateLimit = await consumeRateLimitAsync(
     `signin:email:${normalizeIdentifier(email)}`,
     SIGNIN_LIMIT_PER_EMAIL,
     SIGNIN_WINDOW_MS,
