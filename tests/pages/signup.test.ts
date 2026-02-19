@@ -90,6 +90,33 @@ describe('pages/api/signup', () => {
     expect(prismaMock.user.create).toHaveBeenCalledOnce();
   });
 
+  it('returns 405 for unsupported methods', async () => {
+    const { req, res } = createReqRes('PUT', {});
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(405);
+    expect(res._getJSONData()).toMatchObject({
+      error: 'Method not allowed. Use POST.',
+    });
+  });
+
+  it('returns 400 when required fields are missing', async () => {
+    const { req, res } = createReqRes('POST', {
+      email: 'new@example.com',
+      password: '',
+      name: '',
+    });
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(400);
+    expect(res._getJSONData()).toMatchObject({
+      error: 'Email, password, and username are required',
+    });
+    expect(prismaMock.user.create).not.toHaveBeenCalled();
+  });
+
   it('returns 429 when IP rate limit is exceeded', async () => {
     consumeRateLimitMock.mockReset();
     consumeRateLimitMock.mockReturnValueOnce({

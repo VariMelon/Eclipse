@@ -86,6 +86,31 @@ describe('pages/api/signin', () => {
     });
   });
 
+  it('returns 405 for unsupported methods', async () => {
+    const { req, res } = createReqRes('PUT', {});
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(405);
+    expect(res._getJSONData()).toMatchObject({
+      error: 'Method not allowed. Use POST.',
+    });
+  });
+
+  it('returns 400 when required fields are missing', async () => {
+    const { req, res } = createReqRes('POST', {
+      email: '',
+      password: '',
+    });
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(400);
+    expect(res._getJSONData()).toMatchObject({
+      error: 'Missing fields',
+    });
+  });
+
   it('returns 429 when email rate limit is exceeded', async () => {
     consumeRateLimitMock.mockReset();
     consumeRateLimitMock
@@ -117,5 +142,19 @@ describe('pages/api/signin', () => {
 
     expect(res._getStatusCode()).toBe(401);
     expect(res._getJSONData()).toMatchObject({ error: 'Invalid credentials' });
+  });
+
+  it('returns 400 when validation fails', async () => {
+    validateUserInputMock.mockReturnValueOnce({ ok: false, error: 'Input rejected' });
+
+    const { req, res } = createReqRes('POST', {
+      email: 'new@example.com',
+      password: 'Password123!',
+    });
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(400);
+    expect(res._getJSONData()).toMatchObject({ error: 'Input rejected' });
   });
 });

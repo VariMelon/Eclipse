@@ -130,7 +130,7 @@ Optional:
   - `tests/pages/signup.test.ts`
   - `tests/pages/signin.test.ts`
   - `tests/app/campaign-members.test.ts`
-- Current local test status: PASS (9 tests passing).
+- Current local test status: PASS (16 tests passing, including validation/range and error-envelope paths).
 
 ## Temporary Testing Resources (Status)
 - Temporary testing surfaces were removed from the production codebase.

@@ -126,4 +126,24 @@ describe('app/api/campaigns/members authorization', () => {
       error: 'Only the invited user, GM, or moderator can approve this invite.',
     });
   });
+
+  it('returns 400 on POST when campaignId or userId is missing', async () => {
+    const response = await POST(jsonRequest('POST', { campaignId: '', userId: '', role: 'PLAYER' }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'campaignId and userId are required.',
+    });
+  });
+
+  it('returns 400 on PATCH for unsupported action', async () => {
+    const response = await PATCH(
+      jsonRequest('PATCH', { action: 'not-real', campaignId: 'campaign-1', userId: 'target-1' }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'Invalid action. Supported actions are approve and change-role.',
+    });
+  });
 });
