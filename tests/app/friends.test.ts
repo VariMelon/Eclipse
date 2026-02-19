@@ -1,0 +1,140 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextRequest, NextResponse } from 'next/server';
+
+const {
+  prismaMock,
+  validateUserInputMock,
+  isValidUuidMock,
+  getSessionUserIdMock,
+} = vi.hoisted(() => ({
+  prismaMock: {
+    friend: {
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+      create: vi.fn(),
+    },
+    user: {
+      findUnique: vi.fn(),
+    },
+  },
+  validateUserInputMock: vi.fn(),
+  isValidUuidMock: vi.fn(),
+  getSessionUserIdMock: vi.fn(),
+}));
+
+vi.mock('@/lib/prisma', () => ({
+  default: prismaMock,
+}));
+
+vi.mock('@/lib/inputValidation', () => ({
+  validateUserInput: validateUserInputMock,
+  isValidUuid: isValidUuidMock,
+}));
+
+vi.mock('@/lib/apiAuth', () => ({
+  getSessionUserId: getSessionUserIdMock,
+  badRequestResponse: (message: string) => NextResponse.json({ error: message }, { status: 400 }),
+  conflictResponse: (message: string) => NextResponse.json({ error: message }, { status: 409 }),
+  unauthorizedResponse: () => NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+}));
+
+import { GET, POST } from '@/app/api/friends/route';
+
+function jsonRequest(body: unknown) {
+  return new NextRequest('http://localhost/api/friends', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+}
+
+describe('app/api/friends', () => {
+  beforeEach(() => {
+    validateUserInputMock.mockReturnValue({ ok: true });
+    isValidUuidMock.mockReturnValue(true);
+    getSessionUserIdMock.mockResolvedValue('user-1');
+    prismaMock.friend.findMany.mockResolvedValue([]);
+    prismaMock.user.findUnique.mockResolvedValue({ id: 'user-2' });
+    prismaMock.friend.findFirst.mockResolvedValue(null);
+    prismaMock.friend.create.mockResolvedValue({
+      id: 'friend-1',
+      requesterId: 'user-1',
+      receiverId: 'user-2',
+      status: 'PENDING',
+    });
+  });
+
+  it('returns 401 when session is missing on GET', async () => {
+    getSessionUserIdMock.mockResolvedValueOnce(null);
+
+    const response = await GET();
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({ error: 'Unauthorized' });
+  });
+
+  it('returns 400 when receiverId is missing', async () => {
+    const response = await POST(jsonRequest({ receiverId: '' }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'receiverId is required.',
+    });
+  });
+
+  it('returns 400 when receiverId is invalid', async () => {
+    isValidUuidMock.mockReturnValueOnce(false);
+
+    const response = await POST(jsonRequest({ receiverId: 'bad-id' }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'receiverId must be a valid UUID.',
+    });
+  });
+
+  it('returns 400 when requesting self', async () => {
+    const response = await POST(jsonRequest({ receiverId: 'user-1' }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'You cannot send a friend request to yourself.',
+    });
+  });
+
+  it('returns 400 when receiver does not exist', async () => {
+    prismaMock.user.findUnique.mockResolvedValueOnce(null);
+
+    const response = await POST(jsonRequest({ receiverId: 'user-2' }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'Receiver user does not exist.',
+    });
+  });
+
+  it('returns 409 when relation already exists', async () => {
+    prismaMock.friend.findFirst.mockResolvedValueOnce({ id: 'friend-1' });
+
+    const response = await POST(jsonRequest({ receiverId: 'user-2' }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'Friend relation already exists between these users.',
+    });
+  });
+
+  it('creates a friend request on valid input', async () => {
+    const response = await POST(jsonRequest({ receiverId: 'user-2' }));
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      id: 'friend-1',
+      requesterId: 'user-1',
+      receiverId: 'user-2',
+      status: 'PENDING',
+    });
+  });
+});
