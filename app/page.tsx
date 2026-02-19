@@ -20,8 +20,9 @@ export default async function Home() {
           </div>
 
           <p className="text-lg text-zinc-700 dark:text-zinc-300 max-w-2xl mx-auto">
-            Eclipse is a delightful companion app designed for tabletop role-playing game enthusiasts. 
-            Organize your campaigns, collaborate with players, manage characters, and bring your stories to life.
+            Eclipse is a powerful companion app for tabletop role-playing games. Manage campaigns, organize characters, 
+            collaborate with friends, and share campaign resources—all in one place. Keep your adventures organized and your 
+            players connected.
           </p>
         </section>
 

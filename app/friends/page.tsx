@@ -12,14 +12,17 @@ type Friend = {
   receiverId: string;
   requesterName?: string | null;
   receiverName?: string | null;
+  friendId?: string | null;
+  friendName?: string | null;
   status: string;
 };
 
 type Campaign = { id: string; name: string; createdBy: string };
 
 export default function FriendsPage() {
-  const { status } = useSession();
+  const { status, data: session } = useSession();
   const router = useRouter();
+  const currentUserId = session?.user?.email; // We'll use email as a fallback; ideally we'd have user ID in session
   const [friends, setFriends] = useState<Friend[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [friendUsername, setFriendUsername] = useState("");
@@ -99,7 +102,8 @@ export default function FriendsPage() {
     }
 
     setError("");
-    const targetId = friend.requesterId;
+    // Add the other person in the friendship (not the current user)
+    const targetId = friend.friendId;
 
     try {
       const res = await fetch("/api/campaigns/members", {
@@ -213,7 +217,7 @@ export default function FriendsPage() {
                 >
                   <div>
                     <p className="font-medium text-zinc-900 dark:text-zinc-100">
-                      {friend.requesterName || friend.requesterId}
+                      {friend.friendName || friend.friendId}
                     </p>
                     <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">
                       Friends since now • {friend.status}

@@ -14,7 +14,7 @@ export async function GET() {
     orderBy: { createdAt: 'desc' },
   });
 
-  return NextResponse.json(campaigns);
+  return NextResponse.json({ campaigns });
 }
 
 export async function POST(req: NextRequest) {

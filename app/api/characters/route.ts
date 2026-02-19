@@ -19,7 +19,7 @@ export async function GET() {
     orderBy: { createdAt: 'desc' },
   });
 
-  return NextResponse.json(characters);
+  return NextResponse.json({ characters });
 }
 
 export async function POST(req: NextRequest) {

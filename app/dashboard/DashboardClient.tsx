@@ -23,8 +23,8 @@ export default function DashboardClient({ username, userId }: { username: string
         characterRes.json(),
       ]);
 
-      setCampaigns(Array.isArray(campaignData) ? campaignData : []);
-      setCharacters(Array.isArray(characterData) ? characterData : []);
+      setCampaigns(Array.isArray(campaignData.campaigns) ? campaignData.campaigns : []);
+      setCharacters(Array.isArray(characterData.characters) ? characterData.characters : []);
     } catch {
       setError("Failed to load account data.");
     }

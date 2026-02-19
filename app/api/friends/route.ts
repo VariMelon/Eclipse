@@ -21,14 +21,22 @@ export async function GET() {
       receiver: { select: { id: true, name: true } },
     },
   });
-  const normalized = friends.map((friend) => ({
-    id: friend.id,
-    requesterId: friend.requesterId,
-    receiverId: friend.receiverId,
-    status: friend.status,
-    requesterName: friend.requester?.name ?? null,
-    receiverName: friend.receiver?.name ?? null,
-  }));
+  const normalized = friends.map((friend) => {
+    // Return the OTHER person in the friendship (not the current user)
+    const isCurrentUserRequester = friend.requesterId === userId;
+    const otherPerson = isCurrentUserRequester ? friend.receiver : friend.requester;
+    return {
+      id: friend.id,
+      requesterId: friend.requesterId,
+      receiverId: friend.receiverId,
+      status: friend.status,
+      requesterName: friend.requester?.name ?? null,
+      receiverName: friend.receiver?.name ?? null,
+      // Add friendName and friendId for cleaner frontend use
+      friendId: otherPerson?.id ?? null,
+      friendName: otherPerson?.name ?? null,
+    };
+  });
 
   return NextResponse.json(normalized);
 }
