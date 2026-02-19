@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Role } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { validateUserInput } from '@/lib/inputValidation';
-import { badRequestResponse, forbiddenResponse, getCampaignAccessWhere, getSessionUserId, hasCampaignRole, unauthorizedResponse } from '@/lib/apiAuth';
+import { badRequestResponse, CAMPAIGN_ROLE, forbiddenResponse, getCampaignAccessWhere, getSessionUserId, hasCampaignRole, unauthorizedResponse } from '@/lib/apiAuth';
 
 export async function GET() {
   const userId = await getSessionUserId();
@@ -51,7 +50,7 @@ export async function POST(req: NextRequest) {
   const characterId = typeof data?.characterId === 'string' && data.characterId.trim() ? data.characterId.trim() : null;
 
   if (requestedCampaignId) {
-    const allowedToMutate = await hasCampaignRole(userId, requestedCampaignId, [Role.GM, Role.MODERATOR]);
+    const allowedToMutate = await hasCampaignRole(userId, requestedCampaignId, [CAMPAIGN_ROLE.GM, CAMPAIGN_ROLE.MODERATOR]);
     if (!allowedToMutate) {
       return forbiddenResponse('Only a GM or moderator can create campaign notes.');
     }
@@ -84,7 +83,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (resolvedCampaignId) {
-    const allowedToMutate = await hasCampaignRole(userId, resolvedCampaignId, [Role.GM, Role.MODERATOR]);
+    const allowedToMutate = await hasCampaignRole(userId, resolvedCampaignId, [CAMPAIGN_ROLE.GM, CAMPAIGN_ROLE.MODERATOR]);
     if (!allowedToMutate) {
       return forbiddenResponse('Only a GM or moderator can create campaign notes.');
     }

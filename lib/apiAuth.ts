@@ -1,8 +1,15 @@
-import { Role } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+
+export const CAMPAIGN_ROLE = {
+  GM: "GM",
+  MODERATOR: "MODERATOR",
+  PLAYER: "PLAYER",
+} as const;
+
+export type CampaignRole = (typeof CAMPAIGN_ROLE)[keyof typeof CAMPAIGN_ROLE];
 
 const CAMPAIGN_ACCESS_OR = (userId: string) => ({
   OR: [
@@ -45,14 +52,14 @@ export async function canAccessCampaign(userId: string, campaignId: string) {
   return Boolean(campaign);
 }
 
-export async function getCampaignRole(userId: string, campaignId: string): Promise<Role | null> {
+export async function getCampaignRole(userId: string, campaignId: string): Promise<CampaignRole | null> {
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
     select: { createdBy: true },
   });
 
   if (!campaign) return null;
-  if (campaign.createdBy === userId) return Role.GM;
+  if (campaign.createdBy === userId) return CAMPAIGN_ROLE.GM;
 
   const membership = await prisma.campaignMember.findFirst({
     where: { campaignId, userId },
@@ -62,7 +69,7 @@ export async function getCampaignRole(userId: string, campaignId: string): Promi
   return membership?.role ?? null;
 }
 
-export async function hasCampaignRole(userId: string, campaignId: string, roles: Role[]) {
+export async function hasCampaignRole(userId: string, campaignId: string, roles: CampaignRole[]) {
   const role = await getCampaignRole(userId, campaignId);
   if (!role) return false;
   return roles.includes(role);

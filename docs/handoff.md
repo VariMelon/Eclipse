@@ -8,6 +8,9 @@
 - Input validation is centralized and applied to API create/auth endpoints.
 - Blocked-words moderation list is active and cleaned.
 - App API routes are now session-protected and resource lists are scoped to authorized user/campaign access.
+- Campaign membership workflows are implemented (invite, approve, decline, remove, change-role).
+- Auth routes are rate-limited (signup/signin + NextAuth credentials callback).
+- Production deployment is live on Vercel.
 
 ## Key Files
 - Prisma client: `lib/prisma.ts`
@@ -56,6 +59,16 @@
   - Removed temporary testing surfaces and duplicate routes
   - Removed unused default static assets
   - Simplified home page to product-facing navigation and trimmed unneeded dashboard payload fields
+11. Added campaign membership + role workflows:
+  - `app/api/campaigns/members` supports invite, approve, decline, remove, and role-change actions
+  - campaign invite state persisted in schema/migrations
+12. Enforced GM/moderator role checks on campaign-scoped mutation endpoints:
+  - campaign character creation restricted to GM/moderator
+  - campaign note creation restricted to GM/moderator
+13. Added auth rate limiting:
+  - `pages/api/signup` and `pages/api/signin` now enforce per-IP + per-email windows
+  - `app/api/auth/[...nextauth]` credentials callback now enforces per-IP limits
+14. Deployed to Vercel production and verified core route reachability.
 
 ## Moderation / Validation Behavior
 - Validation entrypoint: `validateUserInput()` in `lib/inputValidation.ts`.
@@ -90,20 +103,22 @@ Optional:
 - Pages auth API endpoints are currently used for stable signup/signin testing.
 
 ## Next Recommended Steps
-1. Add campaign membership workflows and role assignment APIs (invite, approve, remove, change role).
-2. Enforce owner/GM/moderator role checks on mutation endpoints per resource.
-3. Add schema-backed validation constraints per field (length/range).
-4. Add tests for auth, input validation, and dashboard module endpoints.
-5. Add deployment checklist for Vercel + environment parity.
+1. Add automated tests for auth, role authorization, and campaign membership transitions.
+2. Add schema-backed validation constraints per field (length/range) and consistent API error envelopes.
+3. Run full post-deploy smoke/data validation (create account, sign in, campaign/member workflow, moderation checks).
+4. Consider distributed rate limiting (e.g., Redis-backed) for stronger multi-instance production throttling.
+5. Implement PWA deliverables (manifest/service-worker/offline behavior) if included in launch scope.
 
 ## Deployment Readiness (Current)
 - Build status: PASS (`npm run build` completed successfully on 2026-02-19).
 - Auth status: PASS (signup/signin API flows verified).
 - Session-protected dashboard: PASS.
-- Prisma migration status: PASS (`unique_usernames` applied).
+- Prisma migration status: PASS (`unique_usernames` + campaign invite/member uniqueness migrations applied locally).
 - Input validation/moderation: PASS (centralized validator active).
 - Local preflight scripts: ADDED (`npm run preflight`, `npm run health:api`, `npm run preflight:full`).
 - Preflight execution: PASS (`npm run preflight` runs lint + build successfully with no lint warnings).
+- Vercel deployment status: PASS (production live at `https://eclipse-five-wheat.vercel.app`).
+- Production smoke (GET reachability): PASS (`/`, `/auth/signup`, `/auth/signin`, `/dashboard` redirect, `/api/signup`, `/api/signin`, `/api/users` unauthorized).
 
 ## Temporary Testing Resources (Status)
 - Temporary testing surfaces were removed from the production codebase.
@@ -164,8 +179,8 @@ Use this in a fresh chat to save tokens:
 
 ## Before New Chat (Quick Checklist)
 - Current local baseline: `npm run preflight` passes (lint + build clean).
-- Git linkage: configured (`main` tracking `origin/main` at `https://github.com/VariMelon/Eclipse.git`; baseline commit `59b66b9`).
-- Deployment execution status: not yet deployed to Vercel (run checklist above when ready).
-- Core completed areas: Prisma/Neon setup, auth flow, protected dashboard, unique usernames, centralized input validation, blocked words workflow, session-scoped API authorization.
-- Highest-priority unfinished work: campaign membership management and explicit role-based mutation controls.
-- Suggested first task in next chat: implement campaign membership + role management endpoints and apply GM/moderator checks to update/delete actions.
+- Git linkage: configured (`main` tracking `origin/main` at `https://github.com/VariMelon/Eclipse.git`; baseline commit available via `git rev-parse --short HEAD`).
+- Deployment execution status: deployed to Vercel (`https://eclipse-five-wheat.vercel.app`).
+- Core completed areas: Prisma/Neon setup, auth flow, protected dashboard, unique usernames, centralized input validation, blocked words workflow, session-scoped API authorization, membership workflows, role-based mutation controls, and auth rate limiting.
+- Highest-priority unfinished work: automated test coverage + deeper post-deploy functional validation + PWA deliverables.
+- Suggested first task in next chat: add API test suite for auth + campaign membership/role authorization and run against local + deployed environments.

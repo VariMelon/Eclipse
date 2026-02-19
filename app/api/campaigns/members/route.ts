@@ -1,9 +1,10 @@
-import { CampaignInviteStatus, Role } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { validateUserInput } from '@/lib/inputValidation';
 import {
   badRequestResponse,
+  CAMPAIGN_ROLE,
+  CampaignRole,
   canAccessCampaign,
   forbiddenResponse,
   getCampaignRole,
@@ -11,15 +12,19 @@ import {
   unauthorizedResponse,
 } from '@/lib/apiAuth';
 
-function parseRole(value: unknown): Role | null {
+const INVITE_STATUS_PENDING = 'PENDING';
+const INVITE_STATUS_APPROVED = 'APPROVED';
+const INVITE_STATUS_DECLINED = 'DECLINED';
+
+function parseRole(value: unknown): CampaignRole | null {
   if (typeof value !== 'string') {
     return null;
   }
 
   const normalized = value.trim().toUpperCase();
-  if (normalized === 'GM') return Role.GM;
-  if (normalized === 'MODERATOR') return Role.MODERATOR;
-  if (normalized === 'PLAYER') return Role.PLAYER;
+  if (normalized === CAMPAIGN_ROLE.GM) return CAMPAIGN_ROLE.GM;
+  if (normalized === CAMPAIGN_ROLE.MODERATOR) return CAMPAIGN_ROLE.MODERATOR;
+  if (normalized === CAMPAIGN_ROLE.PLAYER) return CAMPAIGN_ROLE.PLAYER;
   return null;
 }
 
@@ -64,7 +69,7 @@ export async function GET(req: NextRequest) {
     prisma.campaignInvite.findMany({
       where: {
         campaignId,
-        status: CampaignInviteStatus.PENDING,
+        status: INVITE_STATUS_PENDING,
       },
       include: {
         invitedUser: {
@@ -102,7 +107,7 @@ export async function POST(req: NextRequest) {
 
   const campaignId = typeof data?.campaignId === 'string' ? data.campaignId.trim() : '';
   const invitedUserId = typeof data?.userId === 'string' ? data.userId.trim() : '';
-  const requestedRole = parseRole(data?.role) || Role.PLAYER;
+  const requestedRole = parseRole(data?.role) || CAMPAIGN_ROLE.PLAYER;
 
   if (!campaignId || !invitedUserId) {
     return badRequestResponse('campaignId and userId are required.');
@@ -113,11 +118,11 @@ export async function POST(req: NextRequest) {
   }
 
   const actorRole = await getCampaignRole(userId, campaignId);
-  if (!actorRole || (actorRole !== Role.GM && actorRole !== Role.MODERATOR)) {
+  if (!actorRole || (actorRole !== CAMPAIGN_ROLE.GM && actorRole !== CAMPAIGN_ROLE.MODERATOR)) {
     return forbiddenResponse('Only a GM or moderator can invite members.');
   }
 
-  if (actorRole !== Role.GM && requestedRole !== Role.PLAYER) {
+  if (actorRole !== CAMPAIGN_ROLE.GM && requestedRole !== CAMPAIGN_ROLE.PLAYER) {
     return forbiddenResponse('Only a GM can invite members with non-player roles.');
   }
 
@@ -146,7 +151,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'User is already a campaign member.' }, { status: 409 });
   }
 
-  if (existingInvite?.status === CampaignInviteStatus.PENDING) {
+  if (existingInvite?.status === INVITE_STATUS_PENDING) {
     return NextResponse.json({ error: 'A pending invite already exists for this user.' }, { status: 409 });
   }
 
@@ -162,12 +167,12 @@ export async function POST(req: NextRequest) {
       invitedUserId,
       invitedById: userId,
       role: requestedRole,
-      status: CampaignInviteStatus.PENDING,
+      status: INVITE_STATUS_PENDING,
     },
     update: {
       invitedById: userId,
       role: requestedRole,
-      status: CampaignInviteStatus.PENDING,
+      status: INVITE_STATUS_PENDING,
     },
   });
 
@@ -209,29 +214,28 @@ export async function PATCH(req: NextRequest) {
       },
     });
 
-    if (!invite || invite.status !== CampaignInviteStatus.PENDING) {
+    if (!invite || invite.status !== INVITE_STATUS_PENDING) {
       return NextResponse.json({ error: 'No pending invite found for this user.' }, { status: 404 });
     }
 
     const actorRole = await getCampaignRole(userId, campaignId);
-    const canModerate = actorRole === Role.GM || actorRole === Role.MODERATOR;
+    const canModerate = actorRole === CAMPAIGN_ROLE.GM || actorRole === CAMPAIGN_ROLE.MODERATOR;
     const isSelfApproval = userId === targetUserId;
 
     if (!isSelfApproval && !canModerate) {
       return forbiddenResponse('Only the invited user, GM, or moderator can approve this invite.');
     }
 
-    if (canModerate && actorRole === Role.MODERATOR && invite.role !== Role.PLAYER) {
+    if (canModerate && actorRole === CAMPAIGN_ROLE.MODERATOR && invite.role !== CAMPAIGN_ROLE.PLAYER) {
       return forbiddenResponse('Moderators can only approve player invites.');
     }
 
-    const member = await prisma.$transaction(async (tx) => {
-      await tx.campaignInvite.update({
+    const [, member] = await prisma.$transaction([
+      prisma.campaignInvite.update({
         where: { id: invite.id },
-        data: { status: CampaignInviteStatus.APPROVED },
-      });
-
-      return tx.campaignMember.upsert({
+        data: { status: INVITE_STATUS_APPROVED },
+      }),
+      prisma.campaignMember.upsert({
         where: {
           campaignId_userId: {
             campaignId,
@@ -246,8 +250,8 @@ export async function PATCH(req: NextRequest) {
         update: {
           role: invite.role,
         },
-      });
-    });
+      }),
+    ]);
 
     return NextResponse.json(member);
   }
@@ -259,7 +263,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const actorRole = await getCampaignRole(userId, campaignId);
-    if (!actorRole || (actorRole !== Role.GM && actorRole !== Role.MODERATOR)) {
+    if (!actorRole || (actorRole !== CAMPAIGN_ROLE.GM && actorRole !== CAMPAIGN_ROLE.MODERATOR)) {
       return forbiddenResponse('Only a GM or moderator can change member roles.');
     }
 
@@ -284,13 +288,13 @@ export async function PATCH(req: NextRequest) {
       return forbiddenResponse('The campaign owner role cannot be changed.');
     }
 
-    if (actorRole === Role.MODERATOR) {
-      if (targetMembership.role !== Role.PLAYER || requestedRole !== Role.PLAYER) {
+    if (actorRole === CAMPAIGN_ROLE.MODERATOR) {
+      if (targetMembership.role !== CAMPAIGN_ROLE.PLAYER || requestedRole !== CAMPAIGN_ROLE.PLAYER) {
         return forbiddenResponse('Moderators can only keep players as PLAYER.');
       }
     }
 
-    if (requestedRole === Role.GM && actorRole !== Role.GM) {
+    if (requestedRole === CAMPAIGN_ROLE.GM && actorRole !== CAMPAIGN_ROLE.GM) {
       return forbiddenResponse('Only a GM can assign GM role.');
     }
 
@@ -333,7 +337,7 @@ export async function DELETE(req: NextRequest) {
   if (action === 'remove') {
     const actorRole = await getCampaignRole(userId, campaignId);
     const isSelfRemoval = userId === targetUserId;
-    const canModerate = actorRole === Role.GM || actorRole === Role.MODERATOR;
+    const canModerate = actorRole === CAMPAIGN_ROLE.GM || actorRole === CAMPAIGN_ROLE.MODERATOR;
 
     if (!isSelfRemoval && !canModerate) {
       return forbiddenResponse('Only GM/moderator can remove other members.');
@@ -360,7 +364,7 @@ export async function DELETE(req: NextRequest) {
       return forbiddenResponse('The campaign owner cannot be removed.');
     }
 
-    if (canModerate && actorRole === Role.MODERATOR && targetMembership.role !== Role.PLAYER) {
+    if (canModerate && actorRole === CAMPAIGN_ROLE.MODERATOR && targetMembership.role !== CAMPAIGN_ROLE.PLAYER) {
       return forbiddenResponse('Moderators can only remove players.');
     }
 
@@ -397,7 +401,7 @@ export async function DELETE(req: NextRequest) {
       },
     });
 
-    if (!invite || invite.status !== CampaignInviteStatus.PENDING) {
+    if (!invite || invite.status !== INVITE_STATUS_PENDING) {
       return NextResponse.json({ error: 'No pending invite found for this user.' }, { status: 404 });
     }
 
@@ -407,7 +411,7 @@ export async function DELETE(req: NextRequest) {
 
     await prisma.campaignInvite.update({
       where: { id: invite.id },
-      data: { status: CampaignInviteStatus.DECLINED },
+      data: { status: INVITE_STATUS_DECLINED },
     });
 
     return NextResponse.json({}, { status: 204 });

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Role } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { validateUserInput } from '@/lib/inputValidation';
-import { badRequestResponse, forbiddenResponse, getCampaignAccessWhere, getSessionUserId, hasCampaignRole, unauthorizedResponse } from '@/lib/apiAuth';
+import { badRequestResponse, CAMPAIGN_ROLE, forbiddenResponse, getCampaignAccessWhere, getSessionUserId, hasCampaignRole, unauthorizedResponse } from '@/lib/apiAuth';
 
 export async function GET() {
   const userId = await getSessionUserId();
@@ -53,7 +52,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (campaignId) {
-    const allowedToMutate = await hasCampaignRole(userId, campaignId, [Role.GM, Role.MODERATOR]);
+    const allowedToMutate = await hasCampaignRole(userId, campaignId, [CAMPAIGN_ROLE.GM, CAMPAIGN_ROLE.MODERATOR]);
     if (!allowedToMutate) {
       return forbiddenResponse('Only a GM or moderator can create campaign characters.');
     }
