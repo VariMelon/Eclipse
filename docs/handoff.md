@@ -116,6 +116,14 @@ Optional:
 1. Confirm offline UX meets product expectations (messaging, cache limits).
 2. Continue deeper post-deploy functional validation.
 
+## Offline UX Review Steps
+1. Install the PWA in a desktop browser (Chrome/Edge) and confirm app name/icon.
+2. Open the installed app online, then go offline.
+3. Navigate to `/` and `/dashboard` while offline; confirm `/offline` fallback renders on failures.
+4. Refresh while offline; confirm `/offline` loads from cache.
+5. Go back online; confirm navigation recovers and data refreshes.
+6. Validate cached content is appropriate (no sensitive data cached unexpectedly).
+
 ## Deployment Readiness (Current)
 - Build status: PASS (`npm run build` completed successfully on 2026-02-19).
 - Auth status: PASS (signup/signin API flows verified).
