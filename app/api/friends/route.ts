@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { validateUserInput } from '@/lib/inputValidation';
-import { badRequestResponse, getSessionUserId, unauthorizedResponse } from '@/lib/apiAuth';
+import { badRequestResponse, conflictResponse, getSessionUserId, unauthorizedResponse } from '@/lib/apiAuth';
 
 export async function GET() {
   const userId = await getSessionUserId();
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
   });
 
   if (existing) {
-    return NextResponse.json({ error: 'Friend relation already exists between these users.' }, { status: 409 });
+    return conflictResponse('Friend relation already exists between these users.');
   }
 
   const friend = await prisma.friend.create({

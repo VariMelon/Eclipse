@@ -104,7 +104,7 @@ Optional:
 
 ## Next Recommended Steps
 1. Add automated tests for auth, role authorization, and campaign membership transitions.
-2. Add schema-backed validation constraints per field (length/range) and consistent API error envelopes.
+2. Add schema-backed validation constraints per field (length/range).
 3. Consider distributed rate limiting (e.g., Redis-backed) for stronger multi-instance production throttling.
 4. Implement PWA deliverables (manifest/service-worker/offline behavior) if included in launch scope.
 
@@ -131,6 +131,10 @@ Optional:
   - `tests/pages/signin.test.ts`
   - `tests/app/campaign-members.test.ts`
 - Current local test status: PASS (16 tests passing, including validation/range and error-envelope paths).
+
+## API Error Envelope Status
+- App API routes now use shared error helpers for `400/401/403/404/405/409` paths where applicable.
+- Error payload format is standardized as `{ error: string }` across current API handlers.
 
 ## Temporary Testing Resources (Status)
 - Temporary testing surfaces were removed from the production codebase.

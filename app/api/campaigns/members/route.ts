@@ -6,9 +6,11 @@ import {
   CAMPAIGN_ROLE,
   CampaignRole,
   canAccessCampaign,
+  conflictResponse,
   forbiddenResponse,
   getCampaignRole,
   getSessionUserId,
+  notFoundResponse,
   unauthorizedResponse,
 } from '@/lib/apiAuth';
 
@@ -148,11 +150,11 @@ export async function POST(req: NextRequest) {
   }
 
   if (existingMember) {
-    return NextResponse.json({ error: 'User is already a campaign member.' }, { status: 409 });
+    return conflictResponse('User is already a campaign member.');
   }
 
   if (existingInvite?.status === INVITE_STATUS_PENDING) {
-    return NextResponse.json({ error: 'A pending invite already exists for this user.' }, { status: 409 });
+    return conflictResponse('A pending invite already exists for this user.');
   }
 
   const invite = await prisma.campaignInvite.upsert({
@@ -215,7 +217,7 @@ export async function PATCH(req: NextRequest) {
     });
 
     if (!invite || invite.status !== INVITE_STATUS_PENDING) {
-      return NextResponse.json({ error: 'No pending invite found for this user.' }, { status: 404 });
+      return notFoundResponse('No pending invite found for this user.');
     }
 
     const actorRole = await getCampaignRole(userId, campaignId);
@@ -281,7 +283,7 @@ export async function PATCH(req: NextRequest) {
     ]);
 
     if (!campaign || !targetMembership) {
-      return NextResponse.json({ error: 'Campaign member not found.' }, { status: 404 });
+      return notFoundResponse('Campaign member not found.');
     }
 
     if (campaign.createdBy === targetUserId) {
@@ -357,7 +359,7 @@ export async function DELETE(req: NextRequest) {
     ]);
 
     if (!campaign || !targetMembership) {
-      return NextResponse.json({ error: 'Campaign member not found.' }, { status: 404 });
+      return notFoundResponse('Campaign member not found.');
     }
 
     if (campaign.createdBy === targetUserId) {
@@ -402,7 +404,7 @@ export async function DELETE(req: NextRequest) {
     });
 
     if (!invite || invite.status !== INVITE_STATUS_PENDING) {
-      return NextResponse.json({ error: 'No pending invite found for this user.' }, { status: 404 });
+      return notFoundResponse('No pending invite found for this user.');
     }
 
     if (userId !== targetUserId) {

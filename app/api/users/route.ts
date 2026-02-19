@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getSessionUserId, unauthorizedResponse } from '@/lib/apiAuth';
+import { getSessionUserId, methodNotAllowedResponse, unauthorizedResponse } from '@/lib/apiAuth';
 
 export async function GET() {
   const userId = await getSessionUserId();
@@ -26,5 +26,5 @@ export async function GET() {
 }
 
 export async function POST() {
-  return NextResponse.json({ error: 'Method not allowed. Use /api/signup.' }, { status: 405 });
+  return methodNotAllowedResponse('Method not allowed. Use /api/signup.');
 }

@@ -30,6 +30,18 @@ export function badRequestResponse(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
 }
 
+export function notFoundResponse(message = "Not found") {
+  return NextResponse.json({ error: message }, { status: 404 });
+}
+
+export function conflictResponse(message: string) {
+  return NextResponse.json({ error: message }, { status: 409 });
+}
+
+export function methodNotAllowedResponse(message = "Method not allowed") {
+  return NextResponse.json({ error: message }, { status: 405 });
+}
+
 export async function getSessionUserId() {
   const session = await getServerSession(authOptions);
   const userId = (session?.user as { id?: string } | undefined)?.id;
