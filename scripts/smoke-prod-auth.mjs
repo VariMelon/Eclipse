@@ -79,7 +79,7 @@ async function signInWithNextAuth(user, jar) {
 
   const form = new URLSearchParams({
     csrfToken: csrf.body.csrfToken,
-    email: user.email,
+    username: user.name,
     password: user.password,
     callbackUrl: `${base}/dashboard`,
     json: 'true',
@@ -102,7 +102,7 @@ async function signInWithNextAuth(user, jar) {
   const session = await requestJson('/api/auth/session', { method: 'GET' }, jar);
   assertStatus(session.status, 200, 'session', session.body);
 
-  if (!session.body?.user?.email) {
+  if (!session.body?.user?.name) {
     throw new Error(`session missing user: ${JSON.stringify(session.body)}`);
   }
 
@@ -134,7 +134,7 @@ async function main() {
   const sessionUser1 = await signInWithNextAuth(user1, jar1);
   const sessionUser2 = await signInWithNextAuth(user2, jar2);
 
-  console.log(`Session OK: ${sessionUser1.email}, ${sessionUser2.email}`);
+  console.log(`Session OK: ${sessionUser1.name}, ${sessionUser2.name}`);
 
   const campaign = await requestJson(
     '/api/campaigns',

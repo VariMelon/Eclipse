@@ -12,6 +12,11 @@ model User {
   password  String
   name      String   @unique
   createdAt DateTime @default(now())
+  
+  // Email verification
+  emailVerified        DateTime?
+  emailVerificationToken String?
+  emailVerificationExpires DateTime?
 
   accounts        Account[]
   sessions        Session[]
@@ -21,6 +26,8 @@ model User {
   campaignInvitesReceived CampaignInvite[] @relation("CampaignInviteReceiver")
   characters      Character[]
   notes           Note[]
+  systems         System[]         @relation("SystemCreator")
+  passwordResets  PasswordReset[]
 
   // Friends relations with explicit names
   sentFriends     Friend[] @relation("FriendRequester")
@@ -63,6 +70,16 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+model PasswordReset {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 model Friend {
   id          String @id @default(uuid())
   requesterId String
@@ -76,10 +93,14 @@ model Friend {
 model Campaign {
   id        String   @id @default(uuid())
   name      String
+  subtitle  String?
+  systemId  String?
+  createdByName String
   createdBy String
   createdAt DateTime @default(now())
 
   creator    User             @relation("CreatedCampaigns", fields: [createdBy], references: [id])
+  system     System?          @relation(fields: [systemId], references: [id])
   members    CampaignMember[]
   invites    CampaignInvite[]
   characters Character[]
@@ -92,7 +113,7 @@ model CampaignMember {
   userId     String
   role       Role
 
-  campaign Campaign @relation(fields: [campaignId], references: [id])
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   user     User     @relation(fields: [userId], references: [id])
 
   @@unique([campaignId, userId])
@@ -108,7 +129,7 @@ model CampaignInvite {
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
 
-  campaign    Campaign @relation(fields: [campaignId], references: [id])
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   invitedUser User     @relation("CampaignInviteReceiver", fields: [invitedUserId], references: [id])
   invitedBy   User     @relation("CampaignInviteSender", fields: [invitedById], references: [id])
 
@@ -132,12 +153,14 @@ model Character {
   name       String
   userId     String
   campaignId String?
+  systemId   String?
   level      Int
   stats      Json
   createdAt  DateTime @default(now())
 
   user        User         @relation(fields: [userId], references: [id])
-  campaign    Campaign?    @relation(fields: [campaignId], references: [id])
+  campaign    Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  system      System?      @relation(fields: [systemId], references: [id], onDelete: SetNull)
   levelSheets LevelSheet[]
   notes       Note[]
 }
@@ -149,7 +172,7 @@ model LevelSheet {
   stats       Json
   createdAt   DateTime @default(now())
 
-  character Character @relation(fields: [characterId], references: [id])
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
 }
 
 model Note {
@@ -162,6 +185,44 @@ model Note {
   createdAt   DateTime @default(now())
 
   character Character? @relation(fields: [characterId], references: [id])
-  campaign  Campaign?  @relation(fields: [campaignId], references: [id])
+  campaign  Campaign?  @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   user      User?      @relation(fields: [userId], references: [id])
+}
+
+model System {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+
+  // Core game mechanics stored as JSON for flexibility
+  diceSystem   Json? // e.g., {"types": ["d4", "d6", "d8", "d10", "d12", "d20", "d100"], "default": "d20"}
+  
+  // Creation rule wizards
+  characterCreationRules Json? // Wizard steps, fields, validations for character creation
+  npcCreationRules       Json? // Rules for creating NPCs
+  monsterCreationRules   Json? // Rules for creating monsters
+  environmentCreationRules Json? // Rules for creating environments/locations
+
+  // Game content (all arrays of objects)
+  races   Json? // Array of race objects with stats, abilities, etc.
+  classes Json? // Array of class objects with progressions, features
+  spells  Json? // Array of spell objects
+  weapons Json? // Array of weapon objects with damage, properties
+  armor   Json? // Array of armor objects with AC, properties
+  items   Json? // Array of general item objects
+
+  // Character stats and progression
+  statBlocks      Json? // Definition of stats (e.g., STR, DEX, CON, INT, WIS, CHA)
+  levelUpCriteria Json? // XP tables, milestone rules, etc.
+  levelUpEffects  Json? // How level ups affect character stats/abilities
+
+  // Metadata
+  createdBy String
+  isPublic  Boolean  @default(false) // If true, anyone can use this system
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  creator   User       @relation("SystemCreator", fields: [createdBy], references: [id])
+  campaigns Campaign[]
+  characters Character[]
 }

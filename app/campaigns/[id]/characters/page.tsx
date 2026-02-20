@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 interface Character {
@@ -14,13 +14,12 @@ interface Character {
   campaignId: string;
 }
 
-interface CampaignCharactersProps {
-  params: { id: string };
-}
-
-export default function CampaignCharactersPage({ params }: CampaignCharactersProps) {
+export default function CampaignCharactersPage() {
   const { status } = useSession();
   const router = useRouter();
+  const params = useParams();
+  const rawId = params?.id;
+  const campaignId = (Array.isArray(rawId) ? rawId[0] : rawId || "") as string;
   const [characters, setCharacters] = useState<Character[]>([]);
   const [loading, setLoading] = useState(true);
   const [campaignName, setCampaignName] = useState("");
@@ -35,14 +34,14 @@ export default function CampaignCharactersPage({ params }: CampaignCharactersPro
       return;
     }
 
-    if (status === "authenticated") {
+    if (status === "authenticated" && campaignId) {
       fetchCharacters();
     }
-  }, [status, router, params.id]);
+  }, [status, router, campaignId]);
 
   async function fetchCharacters() {
     try {
-      const res = await fetch(`/api/campaigns/${params.id}/characters`);
+      const res = await fetch(`/api/campaigns/${campaignId}/characters`);
       if (!res.ok) throw new Error("Failed to fetch characters");
       const data = await res.json();
       setCharacters(data.characters || []);
@@ -65,7 +64,8 @@ export default function CampaignCharactersPage({ params }: CampaignCharactersPro
         body: JSON.stringify({
           name: characterName.trim(),
           level: parseInt(characterLevel),
-          campaignId: params.id,
+          stats: {},
+          campaignId,
         }),
       });
 
@@ -97,7 +97,7 @@ export default function CampaignCharactersPage({ params }: CampaignCharactersPro
       <main className="mx-auto max-w-6xl">
         <div className="mb-8 flex items-start justify-between gap-4">
           <div>
-            <Link href={`/campaigns/${params.id}`} className="text-xs font-medium text-zinc-500">
+            <Link href={`/campaigns/${campaignId}`} className="text-xs font-medium text-zinc-500">
               ← Back to Campaign
             </Link>
             <h1 className="mt-2 text-2xl font-bold text-zinc-900 dark:text-zinc-100">

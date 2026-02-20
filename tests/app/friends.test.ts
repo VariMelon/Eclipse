@@ -7,6 +7,7 @@ const {
   isValidUuidMock,
   isStringLengthBetweenMock,
   getSessionUserIdMock,
+  getCampaignAccessWhereMock,
 } = vi.hoisted(() => ({
   prismaMock: {
     friend: {
@@ -15,6 +16,9 @@ const {
       findUnique: vi.fn(),
       update: vi.fn(),
       create: vi.fn(),
+    },
+    campaign: {
+      findMany: vi.fn(),
     },
     user: {
       findUnique: vi.fn(),
@@ -25,6 +29,7 @@ const {
   isValidUuidMock: vi.fn(),
   isStringLengthBetweenMock: vi.fn(),
   getSessionUserIdMock: vi.fn(),
+  getCampaignAccessWhereMock: vi.fn(),
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -39,6 +44,7 @@ vi.mock('@/lib/inputValidation', () => ({
 
 vi.mock('@/lib/apiAuth', () => ({
   getSessionUserId: getSessionUserIdMock,
+  getCampaignAccessWhere: getCampaignAccessWhereMock,
   badRequestResponse: (message: string) => NextResponse.json({ error: message }, { status: 400 }),
   conflictResponse: (message: string) => NextResponse.json({ error: message }, { status: 409 }),
   unauthorizedResponse: () => NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
@@ -72,7 +78,9 @@ describe('app/api/friends', () => {
     isValidUuidMock.mockReturnValue(true);
     isStringLengthBetweenMock.mockReturnValue(true);
     getSessionUserIdMock.mockResolvedValue('user-1');
+    getCampaignAccessWhereMock.mockReturnValue({});
     prismaMock.friend.findMany.mockResolvedValue([]);
+    prismaMock.campaign.findMany.mockResolvedValue([]);
     prismaMock.user.findUnique.mockResolvedValue({ id: 'user-2' });
     prismaMock.user.findFirst.mockResolvedValue({ id: 'user-2' });
     prismaMock.friend.findFirst.mockResolvedValue(null);
@@ -87,7 +95,7 @@ describe('app/api/friends', () => {
       id: 'friend-1',
       requesterId: 'user-1',
       receiverId: 'user-2',
-      status: 'ACCEPTED',
+      status: 'PENDING',
     });
   });
 
@@ -159,7 +167,7 @@ describe('app/api/friends', () => {
       id: 'friend-1',
       requesterId: 'user-1',
       receiverId: 'user-2',
-      status: 'ACCEPTED',
+      status: 'PENDING',
     });
     expect(prismaMock.user.findFirst).toHaveBeenCalled();
   });
@@ -202,7 +210,7 @@ describe('app/api/friends', () => {
       id: 'friend-1',
       requesterId: 'user-1',
       receiverId: 'user-2',
-      status: 'ACCEPTED',
+      status: 'PENDING',
     });
   });
 });

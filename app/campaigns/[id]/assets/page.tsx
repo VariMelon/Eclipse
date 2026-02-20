@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 interface Asset {
@@ -16,13 +16,12 @@ interface Asset {
   approvalStatus: "pending" | "approved" | "rejected";
 }
 
-interface CampaignAssetsProps {
-  params: { id: string };
-}
-
-export default function CampaignAssetsPage({ params }: CampaignAssetsProps) {
+export default function CampaignAssetsPage() {
   const { status } = useSession();
   const router = useRouter();
+  const params = useParams();
+  const rawId = params?.id;
+  const campaignId = (Array.isArray(rawId) ? rawId[0] : rawId || "") as string;
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<"GM" | "MODERATOR" | "PLAYER" | null>(null);
@@ -38,14 +37,14 @@ export default function CampaignAssetsPage({ params }: CampaignAssetsProps) {
       return;
     }
 
-    if (status === "authenticated") {
+    if (status === "authenticated" && campaignId) {
       fetchAssets();
     }
-  }, [status, router, params.id]);
+  }, [status, router, campaignId]);
 
   async function fetchAssets() {
     try {
-      const res = await fetch(`/api/campaigns/${params.id}/members`);
+      const res = await fetch(`/api/campaigns/${campaignId}/members`);
       if (res.ok) {
         const data = await res.json();
         setUserRole(data.role);
@@ -102,7 +101,7 @@ export default function CampaignAssetsPage({ params }: CampaignAssetsProps) {
       <main className="mx-auto max-w-6xl">
         <div className="mb-8 flex items-start justify-between gap-4">
           <div>
-            <Link href={`/campaigns/${params.id}`} className="text-xs font-medium text-zinc-500">
+            <Link href={`/campaigns/${campaignId}`} className="text-xs font-medium text-zinc-500">
               ← Back to Campaign
             </Link>
             <h1 className="mt-2 text-2xl font-bold text-zinc-900 dark:text-zinc-100">

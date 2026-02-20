@@ -7,6 +7,7 @@ const {
   isStringLengthBetweenMock,
   getSessionUserIdMock,
   getCampaignAccessWhereMock,
+  validateSessionMock,
 } = vi.hoisted(() => ({
   prismaMock: {
     campaign: {
@@ -18,6 +19,7 @@ const {
   isStringLengthBetweenMock: vi.fn(),
   getSessionUserIdMock: vi.fn(),
   getCampaignAccessWhereMock: vi.fn(),
+  validateSessionMock: vi.fn(),
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -32,6 +34,7 @@ vi.mock('@/lib/inputValidation', () => ({
 vi.mock('@/lib/apiAuth', () => ({
   getSessionUserId: getSessionUserIdMock,
   getCampaignAccessWhere: getCampaignAccessWhereMock,
+  validateSession: validateSessionMock,
   badRequestResponse: (message: string) => NextResponse.json({ error: message }, { status: 400 }),
   unauthorizedResponse: () => NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
 }));
@@ -53,6 +56,7 @@ describe('app/api/campaigns', () => {
     validateUserInputMock.mockReturnValue({ ok: true });
     isStringLengthBetweenMock.mockReturnValue(true);
     getSessionUserIdMock.mockResolvedValue('user-1');
+    validateSessionMock.mockResolvedValue({ id: 'user-1', email: 'test@example.com', name: 'testuser' });
     getCampaignAccessWhereMock.mockReturnValue({});
     prismaMock.campaign.findMany.mockResolvedValue([]);
     prismaMock.campaign.create.mockResolvedValue({
@@ -72,6 +76,7 @@ describe('app/api/campaigns', () => {
   });
 
   it('returns 400 when campaign name is missing', async () => {
+    validateSessionMock.mockResolvedValueOnce({ id: 'user-1', email: 'test@example.com', name: 'testuser' });
     const response = await POST(jsonRequest({ name: '' }));
 
     expect(response.status).toBe(400);
@@ -81,6 +86,7 @@ describe('app/api/campaigns', () => {
   });
 
   it('returns 400 when campaign name length is invalid', async () => {
+    validateSessionMock.mockResolvedValueOnce({ id: 'user-1', email: 'test@example.com', name: 'testuser' });
     isStringLengthBetweenMock.mockReturnValueOnce(false);
 
     const response = await POST(jsonRequest({ name: 'ab' }));
@@ -92,6 +98,7 @@ describe('app/api/campaigns', () => {
   });
 
   it('creates a campaign with GM membership on valid input', async () => {
+    validateSessionMock.mockResolvedValueOnce({ id: 'user-1', email: 'test@example.com', name: 'testuser' });
     const response = await POST(jsonRequest({ name: 'Test Campaign' }));
 
     expect(response.status).toBe(201);
@@ -103,13 +110,19 @@ describe('app/api/campaigns', () => {
     expect(prismaMock.campaign.create).toHaveBeenCalledWith({
       data: {
         name: 'Test Campaign',
+        subtitle: null,
+        systemId: null,
         createdBy: 'user-1',
+        createdByName: expect.any(String),
         members: {
           create: {
             userId: 'user-1',
             role: 'GM',
           },
         },
+      },
+      include: {
+        system: true,
       },
     });
   });

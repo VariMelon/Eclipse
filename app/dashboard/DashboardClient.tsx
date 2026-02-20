@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type Campaign = { id: string; name: string; createdBy: string };
+type Campaign = { id: string; name: string; createdBy: string; createdByName?: string };
 type Character = { id: string; name: string; userId: string; level: number; campaignId?: string | null };
 
 export default function DashboardClient({ username, userId }: { username: string; userId: string }) {
@@ -81,6 +81,18 @@ export default function DashboardClient({ username, userId }: { username: string
           {characters.every((character) => !character.campaignId) ? (
             <li>No campaign-linked characters yet.</li>
           ) : null}
+        </ul>
+      </section>
+
+      <section style={{ marginBottom: 24 }}>
+        <h2>Your Campaigns</h2>
+        <ul>
+          {campaigns.map((campaign) => (
+            <li key={campaign.id}>
+              {campaign.name} {campaign.createdByName ? `- GM: ${campaign.createdByName}` : ''}
+            </li>
+          ))}
+          {campaigns.length === 0 ? <li>No campaigns yet.</li> : null}
         </ul>
       </section>
     </div>

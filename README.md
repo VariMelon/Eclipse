@@ -21,10 +21,18 @@ Open `http://localhost:3000`.
 
 - `DATABASE_URL`
 - `NEXTAUTH_SECRET`
+- `NEXTAUTH_URL`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `SMTP_FROM_EMAIL`
 
 Optional:
 
 - `INPUT_BLACKLIST_WORDS`
+- `SMTP_HOST` (default `smtp.zoho.com`)
+- `SMTP_PORT` (default `587`)
+- `SMTP_SECURE` (`true` for port 465, defaults to `false`)
+- `SMTP_FROM_NAME` (default `Eclipse`)
 
 ## Quality Checks
 

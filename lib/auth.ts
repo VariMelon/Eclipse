@@ -4,30 +4,86 @@ import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { validateUserInput } from "@/lib/inputValidation";
 
+function authFailure(reason: string, username?: string) {
+  const normalizedUsername = typeof username === "string" ? username.trim().toLowerCase() : "";
+  const safeUsername = normalizedUsername ? `${normalizedUsername.slice(0, 2)}***` : "unknown";
+  console.warn(`[auth][credentials] failed reason=${reason} username=${safeUsername}`);
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        email: { label: "Email", type: "text" },
+        username: { label: "Username", type: "text" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!credentials?.username || !credentials?.password) {
+          authFailure("missing_credentials");
+          return null;
+        }
 
         const validation = validateUserInput(credentials);
-        if (!validation.ok) return null;
+        if (!validation.ok) {
+          authFailure("invalid_input", credentials.username);
+          return null;
+        }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-        });
+        const username = credentials.username.trim();
 
-        if (!user) return null;
+        try {
+          const users = await prisma.user.findMany({
+            where: {
+              name: {
+                equals: username,
+                mode: "insensitive",
+              },
+            },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              password: true,
+              emailVerified: true,
+            },
+          }) as Array<{
+            id: string;
+            name: string | null;
+            email: string;
+            password: string;
+            emailVerified: Date | null;
+          }>;
 
-        const passwordMatch = await bcrypt.compare(credentials.password, user.password);
-        if (!passwordMatch) return null;
+          if (users.length === 0) {
+            authFailure("invalid_credentials", username);
+            return null;
+          }
 
-        return { id: user.id, name: user.name || user.email, email: user.email };
+          for (const user of users) {
+            const passwordMatch = await bcrypt.compare(credentials.password, user.password);
+            if (!passwordMatch) {
+              continue;
+            }
+
+            if (!user.emailVerified) {
+              authFailure("email_not_verified", username);
+              throw new Error("email_not_verified");
+            }
+
+            return { id: user.id, name: user.name || user.email, email: user.email };
+          }
+
+          authFailure("invalid_credentials", username);
+          return null;
+        } catch (error) {
+          if (error instanceof Error && error.message === "email_not_verified") {
+            throw error;
+          }
+          authFailure("internal_error", username);
+          console.error("[auth][credentials] authorize exception", error);
+          return null;
+        }
       },
     }),
   ],

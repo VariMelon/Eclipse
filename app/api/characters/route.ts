@@ -36,8 +36,11 @@ export async function POST(req: NextRequest) {
 
   const name = typeof data?.name === 'string' ? data.name.trim() : '';
   const level = Number(data?.level);
-  const stats = data?.stats;
+  let stats = data?.stats;
   const campaignId = typeof data?.campaignId === 'string' && data.campaignId.trim() ? data.campaignId.trim() : null;
+  const requestedSystemId = typeof data?.systemId === 'string' && data.systemId.trim()
+    ? data.systemId.trim()
+    : null;
 
   if (!name) {
     return badRequestResponse('Character name is required.');
@@ -51,15 +54,55 @@ export async function POST(req: NextRequest) {
     return badRequestResponse('Character level must be an integer between 1 and 100.');
   }
 
+  if (stats === undefined) {
+    stats = {};
+  }
+
   if (typeof stats !== 'object' || stats === null || Array.isArray(stats)) {
     return badRequestResponse('Character stats must be an object.');
   }
+
+  let resolvedSystemId: string | null = null;
 
   if (campaignId) {
     const allowedToMutate = await hasCampaignRole(userId, campaignId, [CAMPAIGN_ROLE.GM, CAMPAIGN_ROLE.MODERATOR]);
     if (!allowedToMutate) {
       return forbiddenResponse('Only a GM or moderator can create campaign characters.');
     }
+
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: campaignId },
+      select: { systemId: true },
+    });
+
+    if (!campaign) {
+      return badRequestResponse('Campaign not found.');
+    }
+
+    if (!campaign.systemId) {
+      return badRequestResponse('Campaign does not have a system assigned.');
+    }
+
+    resolvedSystemId = campaign.systemId;
+  } else {
+    if (!requestedSystemId) {
+      return badRequestResponse('System is required for global characters.');
+    }
+
+    const system = await prisma.system.findUnique({
+      where: { id: requestedSystemId },
+      select: { id: true, isPublic: true, createdBy: true },
+    });
+
+    if (!system) {
+      return badRequestResponse('System not found.');
+    }
+
+    if (!system.isPublic && system.createdBy !== userId) {
+      return forbiddenResponse('You do not have access to this system.');
+    }
+
+    resolvedSystemId = system.id;
   }
 
   const character = await prisma.character.create({
@@ -69,6 +112,7 @@ export async function POST(req: NextRequest) {
       level,
       stats,
       campaignId,
+      systemId: resolvedSystemId,
     },
   });
 

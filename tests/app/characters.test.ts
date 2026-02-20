@@ -14,6 +14,12 @@ const {
       findMany: vi.fn(),
       create: vi.fn(),
     },
+    system: {
+      findUnique: vi.fn(),
+    },
+    campaign: {
+      findUnique: vi.fn(),
+    },
   },
   validateUserInputMock: vi.fn(),
   isStringLengthBetweenMock: vi.fn(),
@@ -73,6 +79,14 @@ describe('app/api/characters', () => {
       userId: 'user-1',
       campaignId: null,
     });
+    prismaMock.system.findUnique.mockResolvedValue({
+      id: 'system-1',
+      isPublic: true,
+      createdBy: 'user-1',
+    });
+    prismaMock.campaign.findUnique.mockResolvedValue({
+      systemId: 'system-1',
+    });
   });
 
   it('returns 401 when session is missing on GET', async () => {
@@ -125,7 +139,14 @@ describe('app/api/characters', () => {
   });
 
   it('creates a character on valid input', async () => {
-    const response = await POST(jsonRequest({ name: 'Nova', level: 1, stats: { strength: 10 } }));
+    const response = await POST(
+      jsonRequest({
+        name: 'Nova',
+        level: 1,
+        stats: { strength: 10 },
+        systemId: 'system-1',
+      }),
+    );
 
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toMatchObject({

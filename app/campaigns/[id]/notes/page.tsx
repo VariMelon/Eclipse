@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 interface Note {
@@ -15,13 +15,12 @@ interface Note {
   visibility: "gm_only" | "moderator" | "public";
 }
 
-interface CampaignNotesProps {
-  params: { id: string };
-}
-
-export default function CampaignNotesPage({ params }: CampaignNotesProps) {
+export default function CampaignNotesPage() {
   const { status } = useSession();
   const router = useRouter();
+  const params = useParams();
+  const rawId = params?.id;
+  const campaignId = (Array.isArray(rawId) ? rawId[0] : rawId || "") as string;
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<"GM" | "MODERATOR" | "PLAYER" | null>(null);
@@ -37,16 +36,16 @@ export default function CampaignNotesPage({ params }: CampaignNotesProps) {
       return;
     }
 
-    if (status === "authenticated") {
+    if (status === "authenticated" && campaignId) {
       fetchNotes();
     }
-  }, [status, router, params.id]);
+  }, [status, router, campaignId]);
 
   async function fetchNotes() {
     try {
       // For now, we'll show a placeholder
       // In a real implementation, this would fetch from an API
-      const res = await fetch(`/api/campaigns/${params.id}/members`);
+      const res = await fetch(`/api/campaigns/${campaignId}/members`);
       if (res.ok) {
         const data = await res.json();
         setUserRole(data.role);
@@ -102,7 +101,7 @@ export default function CampaignNotesPage({ params }: CampaignNotesProps) {
       <main className="mx-auto max-w-6xl">
         <div className="mb-8 flex items-start justify-between gap-4">
           <div>
-            <Link href={`/campaigns/${params.id}`} className="text-xs font-medium text-zinc-500">
+            <Link href={`/campaigns/${campaignId}`} className="text-xs font-medium text-zinc-500">
               ← Back to Campaign
             </Link>
             <h1 className="mt-2 text-2xl font-bold text-zinc-900 dark:text-zinc-100">

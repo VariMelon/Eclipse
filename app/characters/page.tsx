@@ -75,7 +75,7 @@ export default function CharactersPage() {
     <div className="min-h-[calc(100vh-73px)] bg-zinc-50 dark:bg-black px-6 py-10">
       <main className="mx-auto w-full max-w-6xl">
         {/* Header */}
-        <div className="mb-10 space-y-4">
+        <div className="mb-10 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">Characters</h1>
             <p className="mt-1 text-zinc-600 dark:text-zinc-400">
@@ -84,7 +84,7 @@ export default function CharactersPage() {
           </div>
           <Link
             href="/characters/new"
-            className="inline-block rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-100"
+            className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 transition dark:bg-white dark:text-black dark:hover:bg-zinc-100"
           >
             Create Character
           </Link>

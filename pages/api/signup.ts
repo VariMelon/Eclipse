@@ -1,8 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { isStringLengthBetween, isValidEmail, validateUserInput } from '@/lib/inputValidation';
 import { consumeRateLimitAsync, getNodeRequestIp, normalizeIdentifier } from '@/lib/rateLimit';
+import { sendVerificationEmail } from '@/lib/email';
 
 const SIGNUP_WINDOW_MS = 15 * 60 * 1000;
 const SIGNUP_LIMIT_PER_IP = 10;
@@ -12,6 +14,12 @@ function setRateLimitHeaders(res: NextApiResponse, limit: number, remaining: num
   res.setHeader('X-RateLimit-Limit', String(limit));
   res.setHeader('X-RateLimit-Remaining', String(remaining));
   res.setHeader('X-RateLimit-Reset', String(Math.ceil(resetAt / 1000)));
+}
+
+function getBaseUrl(req: NextApiRequest) {
+  const proto = (req.headers['x-forwarded-proto'] as string) || 'http';
+  const host = req.headers.host;
+  return process.env.NEXTAUTH_URL || (host ? `${proto}://${host}` : '');
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -71,19 +79,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(429).json({ error: 'Too many signup attempts for this email. Please try again later.' });
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { email } });
-  if (existingUser) {
+  const existingEmailUser = await prisma.user.findUnique({ where: { email } });
+  if (existingEmailUser) {
     return res.status(400).json({ error: 'Email already in use' });
   }
 
-  const existingUsername = await prisma.user.findUnique({ where: { name } });
+  const existingUsername = await prisma.user.findFirst({
+    where: {
+      name: {
+        equals: name,
+        mode: 'insensitive',
+      },
+    },
+  });
   if (existingUsername) {
     return res.status(400).json({ error: 'Username already in use' });
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
+  const verificationToken = crypto.randomBytes(32).toString('hex');
+  const verificationExpires = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // 2 days
+
   const user = await prisma.user.create({
-    data: { email, password: hashedPassword, name },
+    data: {
+      email,
+      password: hashedPassword,
+      name,
+      emailVerificationToken: verificationToken,
+      emailVerificationExpires: verificationExpires,
+    },
   });
-  return res.status(201).json({ id: user.id, email: user.email, name: user.name });
+  try {
+    const baseUrl = getBaseUrl(req);
+    const verificationUrl = `${baseUrl}/api/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
+    await sendVerificationEmail(email, verificationUrl);
+  } catch (error) {
+    await prisma.user.delete({ where: { id: user.id } });
+    return res.status(500).json({ error: 'Failed to send verification email. Please try again.' });
+  }
+
+  return res.status(201).json({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    message: 'Account created. Please check your email to verify your account.',
+  });
 }
+

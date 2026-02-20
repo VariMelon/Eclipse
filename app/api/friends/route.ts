@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { isStringLengthBetween, isValidUuid, validateUserInput } from '@/lib/inputValidation';
-import { badRequestResponse, conflictResponse, getSessionUserId, unauthorizedResponse } from '@/lib/apiAuth';
+import { badRequestResponse, conflictResponse, getCampaignAccessWhere, getSessionUserId, unauthorizedResponse } from '@/lib/apiAuth';
 
 export async function GET() {
   const userId = await getSessionUserId();
@@ -38,7 +38,54 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json(normalized);
+  const friendIds = normalized
+    .map((friend) => friend.friendId)
+    .filter((id): id is string => Boolean(id));
+
+  if (friendIds.length === 0) {
+    return NextResponse.json(normalized.map((friend) => ({ ...friend, friendCampaigns: [] })));
+  }
+
+  const sharedCampaigns = await prisma.campaign.findMany({
+    where: {
+      AND: [
+        getCampaignAccessWhere(userId),
+        {
+          OR: [
+            { createdBy: { in: friendIds } },
+            { members: { some: { userId: { in: friendIds } } } },
+          ],
+        },
+      ],
+    },
+    select: {
+      id: true,
+      name: true,
+      createdBy: true,
+      members: { select: { userId: true } },
+    },
+  });
+
+  const campaignsByFriend = new Map<string, { id: string; name: string }[]>();
+  for (const friendId of friendIds) {
+    campaignsByFriend.set(friendId, []);
+  }
+
+  for (const campaign of sharedCampaigns) {
+    const memberIds = new Set(campaign.members.map((member) => member.userId));
+    for (const friendId of friendIds) {
+      if (campaign.createdBy === friendId || memberIds.has(friendId)) {
+        campaignsByFriend.get(friendId)?.push({ id: campaign.id, name: campaign.name });
+      }
+    }
+  }
+
+  const withCampaigns = normalized.map((friend) => ({
+    ...friend,
+    friendCampaigns: friend.friendId ? campaignsByFriend.get(friend.friendId) ?? [] : [],
+  }));
+
+  return NextResponse.json(withCampaigns);
 }
 
 export async function POST(req: NextRequest) {
@@ -113,7 +160,7 @@ export async function POST(req: NextRequest) {
     data: {
       requesterId: userId,
       receiverId,
-      status: 'ACCEPTED',
+      status: 'PENDING',
     },
   });
 

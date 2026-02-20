@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { isStringLengthBetween, validateUserInput } from '@/lib/inputValidation';
-import { badRequestResponse, getCampaignAccessWhere, getSessionUserId, unauthorizedResponse } from '@/lib/apiAuth';
+import { badRequestResponse, getCampaignAccessWhere, getSessionUserId, unauthorizedResponse, validateSession } from '@/lib/apiAuth';
 
 export async function GET() {
   const userId = await getSessionUserId();
@@ -12,14 +12,22 @@ export async function GET() {
   const campaigns = await prisma.campaign.findMany({
     where: getCampaignAccessWhere(userId),
     orderBy: { createdAt: 'desc' },
+    include: {
+      system: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
   });
 
   return NextResponse.json({ campaigns });
 }
 
 export async function POST(req: NextRequest) {
-  const userId = await getSessionUserId();
-  if (!userId) {
+  const user = await validateSession().catch(() => null);
+  if (!user) {
     return unauthorizedResponse();
   }
 
@@ -38,16 +46,40 @@ export async function POST(req: NextRequest) {
     return badRequestResponse('Campaign name must be between 3 and 80 characters.');
   }
 
+  const subtitle = typeof data?.subtitle === 'string' ? data.subtitle.trim() : null;
+  const systemId = typeof data?.systemId === 'string' ? data.systemId.trim() : null;
+
+  // Validate systemId if provided
+  if (systemId) {
+    const system = await prisma.system.findUnique({
+      where: { id: systemId },
+    });
+    if (!system) {
+      return badRequestResponse('Invalid system ID');
+    }
+    // Check if user has access to this system
+    if (!system.isPublic && system.createdBy !== user.id) {
+      return badRequestResponse('You do not have access to this system');
+    }
+  }
+
+  const creatorName = user.name || user.email || 'Unknown';
   const campaign = await prisma.campaign.create({
     data: {
       name,
-      createdBy: userId,
+      subtitle: subtitle || null,
+      systemId: systemId || null,
+      createdBy: user.id,
+      createdByName: creatorName,
       members: {
         create: {
-          userId,
+          userId: user.id,
           role: 'GM',
         },
       },
+    },
+    include: {
+      system: true,
     },
   });
 

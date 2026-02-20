@@ -2,8 +2,9 @@ import "dotenv/config";
 
 const prismaConfig = {
   datasource: {
-    url: process.env.DATABASE_URL,
+    url: process.env.DATABASE_URL || "",
   },
 };
 
 export default prismaConfig;
+export const datasource = prismaConfig.datasource;

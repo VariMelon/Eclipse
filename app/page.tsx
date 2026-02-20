@@ -15,14 +15,12 @@ export default async function Home() {
               Eclipse
             </h1>
             <p className="text-xl text-zinc-600 dark:text-zinc-400">
-              Your TTRPG Campaign Companion
+              I made this? - Vari
             </p>
           </div>
 
           <p className="text-lg text-zinc-700 dark:text-zinc-300 max-w-2xl mx-auto">
-            Eclipse is a powerful companion app for tabletop role-playing games. Manage campaigns, organize characters, 
-            collaborate with friends, and share campaign resources—all in one place. Keep your adventures organized and your 
-            players connected.
+            "Eclipse is a companion app designed to support independent ttrpgs. It was created because Vari got tired of spreadsheets and is a cutie" - Vari.
           </p>
         </section>
 
@@ -36,7 +34,7 @@ export default async function Home() {
               <div>
                 <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">Campaign Management</h3>
                 <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                  Create and manage multiple campaigns with intuitive organization tools.
+                  Manage your campaign!
                 </p>
               </div>
             </div>
@@ -50,7 +48,7 @@ export default async function Home() {
               <div>
                 <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">Player Collaboration</h3>
                 <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                  Invite friends, share campaign details, and collaborate seamlessly.
+                  Collaborate with players!
                 </p>
               </div>
             </div>
@@ -64,7 +62,7 @@ export default async function Home() {
               <div>
                 <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">Character Sheets</h3>
                 <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                  Create and track character progression with flexible level tracking.
+                  We will eventually have them!
                 </p>
               </div>
             </div>
@@ -78,7 +76,7 @@ export default async function Home() {
               <div>
                 <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">Game Resources</h3>
                 <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                  Build wikis, document campaign notes, and organize assets for your stories.
+                  Yummy snacks!
                 </p>
               </div>
             </div>
@@ -92,7 +90,7 @@ export default async function Home() {
               Ready to start your adventure?
             </h2>
             <p className="text-zinc-600 dark:text-zinc-400 mb-6">
-              Join Eclipse today and connect with your gaming community.
+              You better be. Or why the hell are you here? Go sign up or something. Baka.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link
@@ -112,7 +110,7 @@ export default async function Home() {
         ) : (
           <section className="rounded-lg border border-zinc-200 bg-white p-8 dark:border-zinc-800 dark:bg-zinc-950 text-center">
             <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">
-              Welcome back, {session.user?.name}!
+              Okaerinasai, {session.user?.name}!
             </h2>
             <p className="text-zinc-600 dark:text-zinc-400 mb-6">
               Explore your campaigns, friends, and characters using the navigation above.

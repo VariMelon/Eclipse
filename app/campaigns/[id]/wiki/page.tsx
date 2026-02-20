@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 interface WikiEntry {
@@ -14,13 +14,12 @@ interface WikiEntry {
   createdAt: string;
 }
 
-interface CampaignWikiProps {
-  params: { id: string };
-}
-
-export default function CampaignWikiPage({ params }: CampaignWikiProps) {
+export default function CampaignWikiPage() {
   const { status } = useSession();
   const router = useRouter();
+  const params = useParams();
+  const rawId = params?.id;
+  const campaignId = (Array.isArray(rawId) ? rawId[0] : rawId || "") as string;
   const [entries, setEntries] = useState<WikiEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -34,10 +33,10 @@ export default function CampaignWikiPage({ params }: CampaignWikiProps) {
       return;
     }
 
-    if (status === "authenticated") {
+    if (status === "authenticated" && campaignId) {
       fetchWikiEntries();
     }
-  }, [status, router, params.id]);
+  }, [status, router, campaignId]);
 
   async function fetchWikiEntries() {
     try {
@@ -89,7 +88,7 @@ export default function CampaignWikiPage({ params }: CampaignWikiProps) {
       <main className="mx-auto max-w-6xl">
         <div className="mb-8 flex items-start justify-between gap-4">
           <div>
-            <Link href={`/campaigns/${params.id}`} className="text-xs font-medium text-zinc-500">
+            <Link href={`/campaigns/${campaignId}`} className="text-xs font-medium text-zinc-500">
               ← Back to Campaign
             </Link>
             <h1 className="mt-2 text-2xl font-bold text-zinc-900 dark:text-zinc-100">

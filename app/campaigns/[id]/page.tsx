@@ -3,26 +3,33 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 
 interface Campaign {
   id: string;
   name: string;
+  subtitle?: string;
+  system?: string;
+  createdByName?: string;
   createdBy: string;
+  createdAt?: string;
+  isGM?: boolean;
 }
 
-type CampaignContainerProps = {
-  params: { id: string };
-};
-
-export default function CampaignContainer({ params }: CampaignContainerProps) {
-  const { status } = useSession();
+export default function CampaignContainer() {
+  const { status, data: session } = useSession();
   const router = useRouter();
   const pathname = usePathname();
+  const params = useParams();
+  const rawId = params?.id;
+  const campaignId = (Array.isArray(rawId) ? rawId[0] : rawId || "") as string;
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isGM, setIsGM] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -30,17 +37,22 @@ export default function CampaignContainer({ params }: CampaignContainerProps) {
       return;
     }
 
-    if (status === "authenticated") {
+    if (status === "authenticated" && campaignId) {
       fetchCampaign();
     }
-  }, [status, router]);
+  }, [status, router, campaignId]);
 
   async function fetchCampaign() {
     try {
-      const res = await fetch(`/api/campaigns/${params.id}`);
+      const res = await fetch(`/api/campaigns/${campaignId}`);
       if (!res.ok) throw new Error("Campaign not found");
       const data = await res.json();
       setCampaign(data);
+      const sessionUserId = (session?.user as { id?: string } | undefined)?.id;
+      const sessionUsername = session?.user?.name;
+      const isCreator = data.createdBy && sessionUserId && data.createdBy === sessionUserId;
+      const isCreatorByName = data.createdByName && sessionUsername && data.createdByName === sessionUsername;
+      setIsGM(data.isGM === true || isCreator || isCreatorByName);
     } catch (error) {
       console.error("Error fetching campaign:", error);
     } finally {
@@ -48,12 +60,65 @@ export default function CampaignContainer({ params }: CampaignContainerProps) {
     }
   }
 
+  async function handleDeleteCampaign() {
+    if (!confirm("Are you sure you want to delete this campaign? This action cannot be undone.")) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to delete campaign");
+      }
+
+      router.push("/campaigns");
+    } catch (error) {
+      console.error("Error deleting campaign:", error);
+      alert(error instanceof Error ? error.message : "Failed to delete campaign");
+      setDeleting(false);
+    }
+  }
+
+  async function handleExportCampaign() {
+    setExporting(true);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/export`);
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to export campaign");
+      }
+
+      // Trigger download
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${campaign?.name || "campaign"}_export.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("Error exporting campaign:", error);
+      alert(error instanceof Error ? error.message : "Failed to export campaign");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const tabs = [
-    { label: "Overview", href: `/campaigns/${params.id}`, id: "overview" },
-    { label: "Character Sheets", href: `/campaigns/${params.id}/characters`, id: "characters" },
-    { label: "Wiki", href: `/campaigns/${params.id}/wiki`, id: "wiki" },
-    { label: "Notes", href: `/campaigns/${params.id}/notes`, id: "notes" },
-    { label: "Assets", href: `/campaigns/${params.id}/assets`, id: "assets" },
+    { label: "Overview", href: `/campaigns/${campaignId}`, id: "overview" },
+    { label: "Character Sheets", href: `/campaigns/${campaignId}/characters`, id: "characters" },
+    { label: "Wiki", href: `/campaigns/${campaignId}/wiki`, id: "wiki" },
+    { label: "Notes", href: `/campaigns/${campaignId}/notes`, id: "notes" },
+    { label: "Assets", href: `/campaigns/${campaignId}/assets`, id: "assets" },
+    { label: "Members", href: `/campaigns/${campaignId}/members`, id: "members" },
   ];
 
   const isActive = (href: string) => pathname === href;
@@ -84,9 +149,41 @@ export default function CampaignContainer({ params }: CampaignContainerProps) {
           >
             ← Back to Campaigns
           </Link>
-          <h1 className="mt-3 text-3xl font-bold text-zinc-900 dark:text-zinc-100">
-            {campaign?.name || "Campaign"}
-          </h1>
+          <div className="mt-3 flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+                {campaign?.name || "Campaign"}
+              </h1>
+              {campaign?.subtitle && (
+                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                  {campaign.subtitle}
+                </p>
+              )}
+              {campaign?.createdByName && (
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+                  GM: {campaign.createdByName}
+                </p>
+              )}
+            </div>
+            {isGM && (
+              <div className="flex gap-2">
+                <button
+                  onClick={handleExportCampaign}
+                  disabled={exporting}
+                  className="px-3 py-2 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-200 text-sm font-medium disabled:opacity-50 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800"
+                >
+                  {exporting ? "Exporting..." : "Export Data"}
+                </button>
+                <button
+                  onClick={handleDeleteCampaign}
+                  disabled={deleting}
+                  className="px-3 py-2 rounded-md bg-red-100 text-red-700 hover:bg-red-200 text-sm font-medium disabled:opacity-50 dark:bg-red-900 dark:text-red-200 dark:hover:bg-red-800"
+                >
+                  {deleting ? "Deleting..." : "Delete Campaign"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -122,7 +219,7 @@ export default function CampaignContainer({ params }: CampaignContainerProps) {
 
             <div className="grid gap-4 md:grid-cols-2">
               <Link
-                href={`/campaigns/${params.id}/characters`}
+                href={`/campaigns/${campaignId}/characters`}
                 className="group rounded-lg border border-zinc-200 bg-white p-6 hover:border-zinc-300 hover:shadow-md transition dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700"
               >
                 <div className="text-2xl mb-2">🎲</div>
@@ -135,7 +232,7 @@ export default function CampaignContainer({ params }: CampaignContainerProps) {
               </Link>
 
               <Link
-                href={`/campaigns/${params.id}/wiki`}
+                href={`/campaigns/${campaignId}/wiki`}
                 className="group rounded-lg border border-zinc-200 bg-white p-6 hover:border-zinc-300 hover:shadow-md transition dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700"
               >
                 <div className="text-2xl mb-2">📖</div>
@@ -148,7 +245,7 @@ export default function CampaignContainer({ params }: CampaignContainerProps) {
               </Link>
 
               <Link
-                href={`/campaigns/${params.id}/notes`}
+                href={`/campaigns/${campaignId}/notes`}
                 className="group rounded-lg border border-zinc-200 bg-white p-6 hover:border-zinc-300 hover:shadow-md transition dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700"
               >
                 <div className="text-2xl mb-2">📝</div>
@@ -161,7 +258,7 @@ export default function CampaignContainer({ params }: CampaignContainerProps) {
               </Link>
 
               <Link
-                href={`/campaigns/${params.id}/assets`}
+                href={`/campaigns/${campaignId}/assets`}
                 className="group rounded-lg border border-zinc-200 bg-white p-6 hover:border-zinc-300 hover:shadow-md transition dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700"
               >
                 <div className="text-2xl mb-2">📁</div>

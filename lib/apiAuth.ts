@@ -86,3 +86,14 @@ export async function hasCampaignRole(userId: string, campaignId: string, roles:
   if (!role) return false;
   return roles.includes(role);
 }
+
+export async function validateSession() {
+  const session = await getServerSession(authOptions);
+  const user = session?.user as { id?: string; email?: string; name?: string } | undefined;
+  
+  if (!user?.id) {
+    throw new Error("Unauthorized");
+  }
+  
+  return { id: user.id, email: user.email || "", name: user.name || "" };
+}

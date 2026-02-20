@@ -18,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === 'GET') {
     return res.status(200).json({
       message: 'Signin endpoint is reachable.',
-      usage: 'Send POST with JSON body: { email, password }',
+      usage: 'Send POST with JSON body: { username, password }',
     });
   }
 
@@ -40,34 +40,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: validation.error });
   }
 
-  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
-  if (!email || !password) {
+  if (!username || !password) {
     return res.status(400).json({ error: 'Missing fields' });
   }
 
-  if (!isValidEmail(email)) {
-    return res.status(400).json({ error: 'Email format is invalid.' });
+  if (!isStringLengthBetween(username, 3, 50)) {
+    return res.status(400).json({ error: 'Username must be between 3 and 50 characters.' });
   }
 
   if (!isStringLengthBetween(password, 1, 128)) {
     return res.status(400).json({ error: 'Password must be between 1 and 128 characters.' });
   }
 
-  const emailRateLimit = await consumeRateLimitAsync(
-    `signin:email:${normalizeIdentifier(email)}`,
+  const usernameRateLimit = await consumeRateLimitAsync(
+    `signin:username:${normalizeIdentifier(username)}`,
     SIGNIN_LIMIT_PER_EMAIL,
     SIGNIN_WINDOW_MS,
   );
-  setRateLimitHeaders(res, emailRateLimit.limit, emailRateLimit.remaining, emailRateLimit.resetAt);
+  setRateLimitHeaders(res, usernameRateLimit.limit, usernameRateLimit.remaining, usernameRateLimit.resetAt);
 
-  if (!emailRateLimit.allowed) {
-    res.setHeader('Retry-After', String(emailRateLimit.retryAfterSeconds));
-    return res.status(429).json({ error: 'Too many signin attempts for this account. Please try again later.' });
+  if (!usernameRateLimit.allowed) {
+    res.setHeader('Retry-After', String(usernameRateLimit.retryAfterSeconds));
+    return res.status(429).json({ error: 'Too many signin attempts. Please try again later.' });
   }
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findFirst({
+    where: {
+      name: {
+        equals: username,
+        mode: 'insensitive',
+      },
+    },
+  });
   if (!user) {
     return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  if (!user.emailVerified) {
+    return res.status(403).json({ error: 'Email not verified' });
   }
   const passwordMatch = await bcrypt.compare(password, user.password);
   if (!passwordMatch) {

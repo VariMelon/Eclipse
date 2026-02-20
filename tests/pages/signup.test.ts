@@ -16,6 +16,7 @@ const {
   prismaMock: {
     user: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       create: vi.fn(),
     },
   },
@@ -54,9 +55,9 @@ vi.mock('bcryptjs', () => ({
 
 import handler from '@/pages/api/signup';
 
-function createReqRes(method: string, body: unknown) {
+function createReqRes(method: NextApiRequest['method'], body: any) {
   return createMocks<NextApiRequest, NextApiResponse>({
-    method,
+    method: method as any,
     body,
   });
 }
@@ -74,6 +75,7 @@ describe('pages/api/signup', () => {
       .mockReturnValueOnce({ allowed: true, remaining: 4, resetAt: Date.now() + 900000, retryAfterSeconds: 0, limit: 5 });
 
     prismaMock.user.findUnique.mockResolvedValue(null);
+    prismaMock.user.findFirst.mockResolvedValue(null);
     prismaMock.user.create.mockResolvedValue({
       id: 'user-1',
       email: 'new@example.com',

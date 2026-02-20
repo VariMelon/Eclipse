@@ -1,280 +1,101 @@
 # Eclipse Project Handoff (2026-02-19)
 
 ## Current Status
-- Prisma 7 + Neon is working with adapter-based client setup.
-- Authentication is working (signup/signin + NextAuth credentials).
-- Dashboard is protected by session and uses signed-in user identity.
-- Username is required and unique at schema + DB migration level.
-- Input validation is centralized and applied to API create/auth endpoints.
-- Blocked-words moderation list is active and uses whole-word matching.
-- App API routes are now session-protected and resource lists are scoped to authorized user/campaign access.
-- Campaign membership workflows are implemented (invite, approve, decline, remove, change-role).
-- Auth routes are rate-limited (signup/signin + NextAuth credentials callback).
-- Rate limiting supports distributed storage when Upstash Redis env vars are set.
+- Prisma 7 + Neon adapter setup is stable.
+- Auth (signup/signin + NextAuth credentials) is working.
+- Session-protected dashboard and App Router APIs are in place.
+- Campaign membership flows (invite, approve, decline, remove, role change) are implemented.
+- System architecture refactored: systems are independent entities referenced by campaigns.
+- Notifications for friend requests and campaign invites are live.
+- Campaign export/import is live (JSON v1.0).
+- Global typography is standardized and dyslexia-friendly (Lexend).
 - Production deployment is live on Vercel.
-- PWA manifest, service worker, and offline fallback are live.
 
 ## Key Files
-- Prisma client: `lib/prisma.ts`
-- Prisma config: `prisma/prisma.config.ts`
-- Schema: `prisma/schema.prisma`
-- Shared auth options: `lib/auth.ts`
-- NextAuth route: `app/api/auth/[...nextauth]/route.ts`
-- Pages auth APIs (stable in this setup):
-  - `pages/api/signup.ts`
-  - `pages/api/signin.ts`
-- Dashboard:
-  - `app/dashboard/page.tsx` (server-protected)
-  - `app/dashboard/DashboardClient.tsx` (client UI)
-- Input validation: `lib/inputValidation.ts`
-- Blocked words list: `config/blocked-words.txt`
+- App layout + global styles:
+  - `app/layout.tsx`
+  - `app/globals.css`
+- Navigation:
+  - `app/NavBar.tsx`
+- Systems:
+  - `app/systems/page.tsx`
+  - `app/systems/[id]/page.tsx`
+  - `app/api/systems/route.ts`
+  - `app/api/systems/[id]/route.ts`
+- Characters:
+  - `app/characters/page.tsx`
+  - `app/characters/new/page.tsx`
+  - `app/api/characters/route.ts`
+- Campaigns:
+  - `app/campaigns/page.tsx`
+  - `app/campaigns/[id]/page.tsx`
+  - `app/api/campaigns/route.ts`
+  - `app/api/campaigns/[id]/export/route.ts`
+  - `app/api/campaigns/import/route.ts`
+- Notifications:
+  - `app/friends/page.tsx`
+  - `app/api/notifications/route.ts`
+  - `app/api/notifications/actions/route.ts`
+- Prisma:
+  - `prisma/schema.prisma`
+  - `prisma/prisma.config.ts`
+  - `lib/prisma.ts`
 
-## Infrastructure Notes
-- Next.js: 16.1.6 (Turbopack)
-- Prisma: 7.4.0
-- DB: Neon Postgres
-- Prisma 7 requires adapter object, not raw URL string.
-- Current implementation uses `@prisma/adapter-neon` + `@neondatabase/serverless`.
+## Schema Updates (2026-02-19)
+- System model added with JSON-based rule fields (dice, stats, wizards, content).
+- Campaign model uses `systemId` relation instead of free-text system.
+- Character model includes `systemId` relation (required for global characters, derived for campaign characters).
 
-## Completed Work
-1. Fixed Prisma initialization issues by moving to Neon adapter pattern.
-2. Implemented/verified signup + signin APIs.
-3. Wired auth pages and redirect flow to dashboard.
-4. Added session-protected dashboard route.
-5. Added MVP dashboard modules for campaigns/characters/notes/friends.
-6. Enforced unique usernames:
-   - `User.name` is required + unique.
-   - Migration applied: `20260219185722_unique_usernames`.
-7. Added centralized input filtering:
-   - Dangerous chars blocked: control chars, `*`, `%`, `_`, `?`.
-   - Blocked terms loaded from file + optional env list.
-8. Cleaned blocked words list integrity:
-   - No duplicates
-   - No special-character entries that conflict with validator
-9. Added API-side authorization + scoped list access:
-  - `app/api/campaigns` restricted to session user campaigns/memberships
-  - `app/api/characters` restricted to owned or campaign-accessible characters
-  - `app/api/notes` restricted to owned/campaign-accessible notes and character-linked checks
-  - `app/api/friends` restricted to requester/receiver scope with safer create semantics
-  - `app/api/users` restricted to current session user profile only
-10. Removed non-production/testing and duplicate resources:
-  - Removed temporary testing surfaces and duplicate routes
-  - Removed unused default static assets
-  - Simplified home page to product-facing navigation and trimmed unneeded dashboard payload fields
-11. Added campaign membership + role workflows:
-  - `app/api/campaigns/members` supports invite, approve, decline, remove, and role-change actions
-  - campaign invite state persisted in schema/migrations
-12. Enforced GM/moderator role checks on campaign-scoped mutation endpoints:
-  - campaign character creation restricted to GM/moderator
-  - campaign note creation restricted to GM/moderator
-13. Added auth rate limiting:
-  - `pages/api/signup` and `pages/api/signin` now enforce per-IP + per-email windows
-  - `app/api/auth/[...nextauth]` credentials callback now enforces per-IP limits
-  - Optional distributed backing via Upstash (`UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`)
-14. Deployed to Vercel production and verified core route reachability.
-15. Fixed blocked-term false positives by matching whole words instead of substrings.
-16. Hardened Upstash Redis client init to ignore whitespace/invalid env values and fall back safely.
-17. Updated production security smoke script to use JSON HttpClient payloads and richer output.
-18. Added PWA manifest + service worker with offline fallback and cache strategy updates.
+## Migrations Applied
+- `20260219233000_cascade_delete_campaign`
+- `20260219235000_create_system_table`
+- `20260219240000_add_character_system`
 
-## Moderation / Validation Behavior
-- Validation entrypoint: `validateUserInput()` in `lib/inputValidation.ts`.
-- Blocked-term detection is whole-word style to avoid false positives (e.g., `hello`, `crass`).
-- Blocked terms sources:
-  1. `config/blocked-words.txt` (one term per line, `#` comments allowed)
-  2. `.env` `INPUT_BLACKLIST_WORDS` (comma-separated)
-- Current blocked words file stats after cleanup:
-  - Total active terms: 447
-  - Unique terms: 447
-  - Duplicates: 0
-
-## Environment Variables
-Required:
-- `DATABASE_URL`
-- `NEXTAUTH_SECRET`
-
-Optional:
-- `INPUT_BLACKLIST_WORDS` (comma-separated additional blocked terms)
-- `UPSTASH_REDIS_REST_URL` (enables distributed rate limiting)
-- `UPSTASH_REDIS_REST_TOKEN`
+## Recent Changes (End of Day)
+- Characters navbar simplified: single link to `/characters` (dropdown removed).
+- Create Character button aligned to right for consistency.
+- Create System button font weight matched other CTAs.
+- Global typography standardized:
+  - Lexend added as global sans font.
+  - Global line-height and letter-spacing added.
+  - Consistent font weights for body, headings, and form controls.
+- Systems PATCH response now returns `_count` to prevent UI crash after save.
+- Characters creation flow updated:
+  - Global characters require system selection.
+  - Campaign characters inherit the campaign's system.
+  - `/api/characters` validates system access and sets `systemId`.
+  - `stats` defaults to `{}` when omitted.
+- Campaign list API now includes system info for character creation UI.
 
 ## How to Test Quickly
 1. `npm run dev`
-2. Signup page: `/auth/signup`
-3. Signin page: `/auth/signin`
-4. Dashboard: `/dashboard` (requires active session)
-5. API checks:
-   - `POST /api/signup`
-   - `POST /api/signin`
-6. DB inspection: `npx prisma studio`
+2. Auth:
+   - `/auth/signup` and `/auth/signin`
+3. Systems:
+   - Create a system in `/systems`
+   - Edit and save system (verify no crash)
+4. Campaigns:
+   - Create campaign using the system
+5. Characters:
+   - `/characters/new` requires a system when no campaign is selected
+   - Select a campaign to auto-use its system
+6. Notifications:
+   - Send a friend request and campaign invite, accept/decline
+7. Export/Import:
+   - Export a campaign, then import from file
 
-## Known Constraints
-- App Router + Prisma 7 can be sensitive under Turbopack; current setup is stabilized with shared adapter client.
-- Pages auth API endpoints are currently used for stable signup/signin testing.
+## Deployment Readiness
+- Tests: PASS (53/53)
+- Build: PASS
+- Latest deploy: `https://eclipse-five-wheat.vercel.app`
+- Prisma client regenerated after latest schema updates.
+
+## Test Coverage
+- Vitest: `npm test`
+- Tests include campaigns, characters, notes, friends, users, auth, and members.
 
 ## Next Recommended Steps
-1. Confirm offline UX meets product expectations (messaging, cache limits).
-2. Continue deeper post-deploy functional validation.
-
-## Offline UX Review Steps
-1. Install the PWA in a desktop browser (Chrome/Edge) and confirm app name/icon.
-2. Open the installed app online, then go offline.
-3. Navigate to `/` and `/dashboard` while offline; confirm `/offline` fallback renders on failures.
-4. Refresh while offline; confirm `/offline` loads from cache.
-5. Go back online; confirm navigation recovers and data refreshes.
-6. Validate cached content is appropriate (no sensitive data cached unexpectedly).
-
-## Broader Post-Deploy Validation Checklist
-Prep:
-- Sign in as User A (GM) and User B (player).
-
-Campaigns:
-- Create a campaign as User A.
-- Edit campaign name (if supported) or create a second campaign and verify list/order.
-- Verify User B cannot see campaigns they are not a member of.
-
-Memberships:
-- Invite User B as Player; verify invite appears.
-- Approve invite as User B; verify membership shows as Player.
-- Attempt to change User B role as non-GM (should fail), then as GM (should succeed).
-- Remove User B; verify access is revoked.
-
-Characters:
-- Create a character as User A (no campaign); verify it appears in list.
-- Create a campaign character as User A (GM); verify it appears under campaign.
-- Attempt campaign character creation as User B (non-GM); expect 403.
-- Verify User B only sees owned or campaign-authorized characters.
-
-Notes:
-- Create a personal note (no campaign); verify list.
-- Create a campaign note as GM; verify list for GM and Player.
-- Create a note tied to a campaign character; verify campaign matching rules.
-- Attempt campaign note creation as non-GM; expect 403.
-
-Friends:
-- Send friend request from User A to User B; verify PENDING for both.
-- Attempt duplicate request; expect 409.
-- Verify self-request is rejected (400).
-
-Auth and Rate Limits:
-- Confirm signin/signup still work.
-- Trigger email rate limit on signin (11 attempts) and confirm 429 with headers.
-
-## Deployment Readiness (Current)
-- Build status: PASS (`npm run build` completed successfully on 2026-02-19).
-- Auth status: PASS (signup/signin API flows verified).
-- Session-protected dashboard: PASS.
-- Prisma migration status: PASS (`unique_usernames` + campaign invite/member uniqueness migrations applied in production).
-- Input validation/moderation: PASS (centralized validator active).
-- Local preflight scripts: ADDED (`npm run preflight`, `npm run health:api`, `npm run preflight:full`).
-- Preflight execution: PASS (`npm run preflight` runs lint + build successfully with no lint warnings).
-- Vercel deployment status: PASS (production live at `https://eclipse-five-wheat.vercel.app`).
-- Vercel environment status: PASS (`DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL` configured for production).
-- Production smoke (GET reachability): PASS (`/`, `/auth/signup`, `/auth/signin`, `/dashboard` redirect, `/api/signup`, `/api/signin`, `/api/users` unauthorized).
-- Production smoke (authenticated flow): PASS (signup, NextAuth session, campaign create, invite member, approve invite, membership verify).
-- Production moderation check: PASS (`POST /api/signup` rejects forbidden characters with `400` and error `Input field 'name' contains forbidden characters.`).
-- Production rate-limit check: PASS (invalid credentials return `401`, email limiter returns `429` with `Retry-After` after 10 attempts).
-- Production moderation false-positive fix: PASS (`hello` and `crass` no longer blocked by substring matches).
-- Production PWA check: PASS (`/manifest.webmanifest`, `/sw.js`, and `/offline` respond with 200).
-- Production friends add: PASS (friend relationships can be created by username or receiverId; no pending state).
-- Release verification timestamp (UTC): `2026-02-19T22:36:10Z`.
-
-## Test Coverage (Current)
-- Test runner: Vitest (`npm run test`).
-- Added backend tests:
-  - `tests/pages/signup.test.ts`
-  - `tests/pages/signin.test.ts`
-  - `tests/app/campaign-members.test.ts`
-  - `tests/app/campaigns.test.ts`
-  - `tests/app/characters.test.ts`
-  - `tests/app/notes.test.ts`
-  - `tests/app/friends.test.ts`
-  - `tests/app/users.test.ts`
-- Current local test status: PASS (49 tests passing, including app route validation/authorization coverage).
-
-## API Error Envelope Status
-- App API routes now use shared error helpers for `400/401/403/404/405/409` paths where applicable.
-- Error payload format is standardized as `{ error: string }` across current API handlers.
-
-## Field Validation Status
-- Field-level constraints are enforced on key inputs:
-  - auth (`email` format, password length, username length)
-  - campaigns (`name` length)
-  - campaign members (`campaignId`/`userId` UUID format)
-  - characters (`name` length, `level` range)
-  - notes (`content` length, alias count/length)
-  - friends (`receiverId` UUID format)
-
-## Recent Fixes
-- Upstash Redis env trimming and guardrails to avoid production 500s on whitespace values.
-- Security smoke script updated to use JSON HttpClient requests and emit bodies/headers.
-- Blocked-word detection now avoids substring false positives.
-- PWA offline fallback page and cache strategy improvements deployed.
-- Friends API now supports username-based requests.
-- Friends now default to accepted status and can be added to campaigns from the dashboard.
-
-## Temporary Testing Resources (Status)
-- Temporary testing surfaces were removed from the production codebase.
-
-## Vercel Deployment Checklist
-
-### 1) Repository + Project
-1. If a GitHub repo is linked, push latest branch and import it in Vercel.
-2. If no repo is linked yet, create/import the repo later and continue local validation now.
-3. Keep framework preset as Next.js.
-
-### 2) Environment Variables (Vercel)
-Set these in Vercel Project Settings → Environment Variables:
-- `DATABASE_URL` = Neon Postgres connection string
-- `NEXTAUTH_SECRET` = long random secret
-- `NEXTAUTH_URL` = production base URL (for example `https://your-app.vercel.app`)
-- `INPUT_BLACKLIST_WORDS` (optional) = comma-separated extra blocked terms
-
-### 3) Build/Runtime Defaults
-- Node version: use Vercel default (or align to local if pinned later).
-- Install command: `npm install`
-- Build command: `npm run build`
-- Output: Next.js default
-
-### 3.5) Pre-Release Cleanup (Testing Surfaces)
-1. Confirm no temporary testing routes/pages were reintroduced.
-2. Run `npm run preflight` before deploy.
-
-### 4) Post-Deploy Smoke Test
-After first deploy, verify:
-1. `/auth/signup` renders and creates a user.
-2. `/auth/signin` renders and signs in.
-3. `/dashboard` redirects when logged out; loads when logged in.
-4. `POST /api/signup` and `POST /api/signin` return success for valid payloads.
-5. Dashboard create flows work for campaigns/characters/notes/friends.
-
-### Local Preflight Commands
-Use these before pushing/deploying:
-1. `npm run preflight` (lint + build)
-2. `npm run health:api` (requires local app running; checks `/api/signup` and `/api/signin`)
-3. `npm run preflight:full` (runs both)
-4. No git status/diff check is required for this handoff when a repo is not linked.
-
-### 5) Data/Infra Validation
-1. Confirm created records in Neon (or Prisma Studio from local against same DB).
-2. Confirm username uniqueness enforcement still returns expected error for duplicates.
-3. Confirm moderation blocks terms from `config/blocked-words.txt` and optional env list.
-
-### 6) Known Production Notes
-- Current stable auth API paths for manual testing are Pages Router endpoints (`/api/signup`, `/api/signin`).
-- App Router endpoints exist; keep using current shared Prisma adapter setup in `lib/prisma.ts`.
-- If callback URLs/session issues appear in production, re-check `NEXTAUTH_URL` first.
-
-## New Chat Bootstrap Prompt
-Use this in a fresh chat to save tokens:
-
-"Read `docs/handoff.md` and continue implementation from the Next Recommended Steps section. Prioritize API-side authorization and role-based access for campaign resources."
-"Read `docs/handoff.md` and continue implementation from the Next Recommended Steps section. Focus on offline UX review and the broader post-deploy validation checklist."
-
-## Before New Chat (Quick Checklist)
-- Current local baseline: `npm run preflight` passes (lint + build clean).
-- Git linkage: configured (`main` tracking `origin/main` at `https://github.com/VariMelon/Eclipse.git`; baseline commit available via `git rev-parse --short HEAD`).
-- Deployment execution status: deployed to Vercel (`https://eclipse-five-wheat.vercel.app`).
-- Core completed areas: Prisma/Neon setup, auth flow, protected dashboard, unique usernames, centralized input validation, blocked words workflow, session-scoped API authorization, membership workflows, role-based mutation controls, and auth rate limiting.
-- Highest-priority unfinished work: deeper post-deploy functional validation + offline UX review.
-- Suggested first task in next chat: run the Offline UX Review Steps and then the Broader Post-Deploy Validation Checklist.
+1. Validate Lexend font and global typography on production UI.
+2. Confirm character creation rules (system required for global, derived for campaign).
+3. Run a full production smoke test (auth + campaign + notifications + export/import).
+4. Consider adding UI wizards for system rules (future scope).
