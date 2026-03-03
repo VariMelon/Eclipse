@@ -743,8 +743,8 @@ export default function SystemDetailPage() {
         </div>
 
         {wizardOpen && wizardBlock && (
-          <div className="fixed inset-0 z-50 bg-black/50 p-4 flex items-center justify-center">
-            <div className="w-full max-w-2xl rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="fixed inset-0 z-50 bg-black/50 p-4 flex items-center justify-center overflow-y-auto">
+            <div className="w-full max-w-2xl rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950 max-h-[90vh] overflow-y-auto my-auto">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
