@@ -206,6 +206,7 @@ model System {
   // Game content (all arrays of objects)
   races   Json? // Array of race objects with stats, abilities, etc.
   classes Json? // Array of class objects with progressions, features
+  backgrounds Json? // Array of background objects with resources and traits
   spells  Json? // Array of spell objects
   weapons Json? // Array of weapon objects with damage, properties
   armor   Json? // Array of armor objects with AC, properties

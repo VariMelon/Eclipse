@@ -26,6 +26,7 @@ interface System {
   environmentCreationRules: any;
   races: any;
   classes: any;
+  backgrounds: any;
   spells: any;
   weapons: any;
   armor: any;
@@ -44,6 +45,7 @@ type BlockKey =
   | "environmentCreationRules"
   | "races"
   | "classes"
+  | "backgrounds"
   | "spells"
   | "weapons"
   | "armor"
@@ -82,17 +84,40 @@ const BLOCKS: Array<{
   {
     key: "diceSystem",
     label: "Dice System",
-    template: { types: ["d4", "d6", "d8", "d10", "d12", "d20"], default: "d20" },
+    template: { types: ["d4", "d6", "d8", "d10", "d12", "d20"], default: "d20", coinFlip: true },
   },
   {
     key: "statBlocks",
     label: "Stat Blocks",
-    template: { stats: ["STR", "DEX", "CON", "INT", "WIS", "CHA"], min: 1, max: 20 },
+    template: {
+      primaryStats: {
+        STR: { type: "number", min: 1, max: 20 },
+        DEX: { type: "number", min: 1, max: 20 },
+      },
+      subStats: [
+        { name: "Initiative", derivedFrom: "DEX", formula: "modifier" },
+      ],
+      nonNumericDefinitions: {
+        carryRoll: "1d4",
+        inspiration: false,
+        morale: "neutral",
+      },
+    },
   },
   {
     key: "characterCreationRules",
     label: "Character Creation",
-    template: { startingLevel: 1, pointBuy: 27, allowFeatsAtLevel1: false },
+    template: {
+      nameFieldType: "openText",
+      pronounsFieldType: "openText",
+      alignmentFieldType: "openText",
+      classSource: "system.classes",
+      backgroundSource: "system.backgrounds",
+      resourcesSource: {
+        mode: "merge",
+        from: ["backgrounds.resources", "classes.resources"],
+      },
+    },
   },
   {
     key: "npcCreationRules",
@@ -117,7 +142,12 @@ const BLOCKS: Array<{
   {
     key: "classes",
     label: "Classes",
-    template: [{ name: "Fighter", hitDie: "d10", primaryStats: ["STR"] }],
+    template: [{ name: "Fighter", hitDie: "d10", primaryStats: ["STR"], resources: { stamina: 2 } }],
+  },
+  {
+    key: "backgrounds",
+    label: "Backgrounds",
+    template: [{ name: "Soldier", description: "Trained combatant", resources: { gold: 10, rations: 3 } }],
   },
   {
     key: "spells",
@@ -156,16 +186,18 @@ const BLOCK_HINTS: Record<BlockKey, string[]> = {
     "Use `types` as an array (e.g. [\"d4\", \"d6\", \"d20\"]).",
     "Set `default` for the main roll die (e.g. \"d20\").",
     "Optional: include `criticalThreshold` for crit rules.",
+    "Optional: include `coinFlip` for binary checks (true/false).",
   ],
   statBlocks: [
-    "Use `stats` as an ordered array (e.g. [\"STR\", \"DEX\", \"CON\"]).",
-    "Optional: set `min` and `max` value limits.",
-    "Optional: include modifiers formula details in extra keys.",
+    "Define unique primary stats under `primaryStats`.",
+    "Define derived values under `subStats` (modified by primary stats).",
+    "Use `nonNumericDefinitions` for dice/checkbox/polarity style fields.",
   ],
   characterCreationRules: [
-    "Include onboarding values like `startingLevel`.",
-    "Add generation systems such as `pointBuy` or roll method.",
-    "Use booleans for toggles (e.g. `allowFeatsAtLevel1`).",
+    "Use open-text fields for name, pronouns, and alignment.",
+    "Set `classSource` to use your system classes.",
+    "Set `backgroundSource` to use your new backgrounds block.",
+    "Set `resourcesSource` to merge background and class resources.",
   ],
   npcCreationRules: [
     "Set defaults such as `defaultDisposition`.",
@@ -191,6 +223,12 @@ const BLOCK_HINTS: Record<BlockKey, string[]> = {
     "Use an array of class objects with `name` and hit dice.",
     "Include progression info (features by level) in nested keys.",
     "Optional: add subclasses and prerequisites.",
+    "Optional: include `resources` object for character setup.",
+  ],
+  backgrounds: [
+    "Use an array of background objects with `name`.",
+    "Include `description` for narrative context.",
+    "Use `resources` object for starting inventory/currency/etc.",
   ],
   spells: [
     "Use an array with `name`, `level`, and `school`.",
@@ -224,23 +262,27 @@ const BLOCK_HINTS: Record<BlockKey, string[]> = {
   ],
 };
 
-const LIST_BLOCKS = new Set<BlockKey>(["races", "classes", "spells", "weapons", "armor", "items"]);
+const LIST_BLOCKS = new Set<BlockKey>(["races", "classes", "backgrounds", "spells", "weapons", "armor", "items"]);
 
 const BLOCK_VARIABLE_OPTIONS: Record<BlockKey, VariableOption[]> = {
   diceSystem: [
     { key: "types", label: "Dice Types", type: "stringArray", placeholder: "d4, d6, d8, d10, d12, d20" },
     { key: "default", label: "Default Die", type: "string", placeholder: "d20" },
     { key: "criticalThreshold", label: "Critical Threshold", type: "number", placeholder: "20" },
+    { key: "coinFlip", label: "Coin Flip", type: "boolean", placeholder: "true" },
   ],
   statBlocks: [
-    { key: "stats", label: "Stats", type: "stringArray", placeholder: "STR, DEX, CON, INT, WIS, CHA" },
-    { key: "min", label: "Minimum", type: "number", placeholder: "1" },
-    { key: "max", label: "Maximum", type: "number", placeholder: "20" },
+    { key: "primaryStats", label: "Primary Stats", type: "json", placeholder: "{\"STR\":{\"type\":\"number\"}}" },
+    { key: "subStats", label: "Sub Stats", type: "json", placeholder: "[{\"name\":\"Initiative\",\"derivedFrom\":\"DEX\"}]" },
+    { key: "nonNumericDefinitions", label: "Non Numeric Definitions", type: "json", placeholder: "{\"carryRoll\":\"1d4\",\"inspiration\":false,\"morale\":\"neutral\"}" },
   ],
   characterCreationRules: [
-    { key: "startingLevel", label: "Starting Level", type: "number", placeholder: "1" },
-    { key: "pointBuy", label: "Point Buy", type: "number", placeholder: "27" },
-    { key: "allowFeatsAtLevel1", label: "Allow Feats At Level 1", type: "boolean", placeholder: "false" },
+    { key: "nameFieldType", label: "Name Field", type: "string", placeholder: "openText" },
+    { key: "pronounsFieldType", label: "Pronouns Field", type: "string", placeholder: "openText" },
+    { key: "alignmentFieldType", label: "Alignment Field", type: "string", placeholder: "openText" },
+    { key: "classSource", label: "Class Source", type: "string", placeholder: "system.classes" },
+    { key: "backgroundSource", label: "Background Source", type: "string", placeholder: "system.backgrounds" },
+    { key: "resourcesSource", label: "Resources Source", type: "json", placeholder: "{\"mode\":\"merge\",\"from\":[\"backgrounds.resources\",\"classes.resources\"]}" },
   ],
   npcCreationRules: [
     { key: "defaultDisposition", label: "Default Disposition", type: "string", placeholder: "neutral" },
@@ -262,6 +304,12 @@ const BLOCK_VARIABLE_OPTIONS: Record<BlockKey, VariableOption[]> = {
     { key: "name", label: "Name", type: "string", placeholder: "Fighter" },
     { key: "hitDie", label: "Hit Die", type: "string", placeholder: "d10" },
     { key: "primaryStats", label: "Primary Stats", type: "stringArray", placeholder: "STR" },
+    { key: "resources", label: "Resources", type: "json", placeholder: "{\"stamina\": 2}" },
+  ],
+  backgrounds: [
+    { key: "name", label: "Name", type: "string", placeholder: "Soldier" },
+    { key: "description", label: "Description", type: "string", placeholder: "Trained combatant" },
+    { key: "resources", label: "Resources", type: "json", placeholder: "{\"gold\": 10, \"rations\": 3}" },
   ],
   spells: [
     { key: "name", label: "Name", type: "string", placeholder: "Magic Missile" },

@@ -128,6 +128,7 @@ export async function PATCH(
         }),
         ...(body.races !== undefined && { races: body.races }),
         ...(body.classes !== undefined && { classes: body.classes }),
+        ...(body.backgrounds !== undefined && { backgrounds: body.backgrounds }),
         ...(body.spells !== undefined && { spells: body.spells }),
         ...(body.weapons !== undefined && { weapons: body.weapons }),
         ...(body.armor !== undefined && { armor: body.armor }),

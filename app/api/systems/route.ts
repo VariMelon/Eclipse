@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
         environmentCreationRules: body.environmentCreationRules || null,
         races: body.races || null,
         classes: body.classes || null,
+        ...(body.backgrounds !== undefined && { backgrounds: body.backgrounds }),
         spells: body.spells || null,
         weapons: body.weapons || null,
         armor: body.armor || null,
