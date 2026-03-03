@@ -55,7 +55,23 @@ type WizardDraft = {
   title: string;
   summary: string;
   tags: string;
-  dataJson: string;
+};
+
+type VariableType = "string" | "number" | "boolean" | "stringArray" | "json";
+
+type VariableOption = {
+  key: string;
+  label: string;
+  type: VariableType;
+  placeholder?: string;
+};
+
+type WizardVariable = {
+  id: string;
+  key: string;
+  type: VariableType;
+  value: string;
+  group: number;
 };
 
 const BLOCKS: Array<{
@@ -208,6 +224,74 @@ const BLOCK_HINTS: Record<BlockKey, string[]> = {
   ],
 };
 
+const LIST_BLOCKS = new Set<BlockKey>(["races", "classes", "spells", "weapons", "armor", "items"]);
+
+const BLOCK_VARIABLE_OPTIONS: Record<BlockKey, VariableOption[]> = {
+  diceSystem: [
+    { key: "types", label: "Dice Types", type: "stringArray", placeholder: "d4, d6, d8, d10, d12, d20" },
+    { key: "default", label: "Default Die", type: "string", placeholder: "d20" },
+    { key: "criticalThreshold", label: "Critical Threshold", type: "number", placeholder: "20" },
+  ],
+  statBlocks: [
+    { key: "stats", label: "Stats", type: "stringArray", placeholder: "STR, DEX, CON, INT, WIS, CHA" },
+    { key: "min", label: "Minimum", type: "number", placeholder: "1" },
+    { key: "max", label: "Maximum", type: "number", placeholder: "20" },
+  ],
+  characterCreationRules: [
+    { key: "startingLevel", label: "Starting Level", type: "number", placeholder: "1" },
+    { key: "pointBuy", label: "Point Buy", type: "number", placeholder: "27" },
+    { key: "allowFeatsAtLevel1", label: "Allow Feats At Level 1", type: "boolean", placeholder: "false" },
+  ],
+  npcCreationRules: [
+    { key: "defaultDisposition", label: "Default Disposition", type: "string", placeholder: "neutral" },
+    { key: "generateBackground", label: "Generate Background", type: "boolean", placeholder: "true" },
+  ],
+  monsterCreationRules: [
+    { key: "challengeRatings", label: "Challenge Ratings", type: "stringArray", placeholder: "1/4, 1/2, 1, 2, 3" },
+    { key: "scaling", label: "Scaling", type: "string", placeholder: "linear" },
+  ],
+  environmentCreationRules: [
+    { key: "biomes", label: "Biomes", type: "stringArray", placeholder: "forest, desert, urban" },
+    { key: "hazardsEnabled", label: "Hazards Enabled", type: "boolean", placeholder: "true" },
+  ],
+  races: [
+    { key: "name", label: "Name", type: "string", placeholder: "Human" },
+    { key: "bonuses", label: "Bonuses", type: "json", placeholder: "{\"any\": 1}" },
+  ],
+  classes: [
+    { key: "name", label: "Name", type: "string", placeholder: "Fighter" },
+    { key: "hitDie", label: "Hit Die", type: "string", placeholder: "d10" },
+    { key: "primaryStats", label: "Primary Stats", type: "stringArray", placeholder: "STR" },
+  ],
+  spells: [
+    { key: "name", label: "Name", type: "string", placeholder: "Magic Missile" },
+    { key: "level", label: "Level", type: "number", placeholder: "1" },
+    { key: "school", label: "School", type: "string", placeholder: "Evocation" },
+  ],
+  weapons: [
+    { key: "name", label: "Name", type: "string", placeholder: "Longsword" },
+    { key: "damage", label: "Damage", type: "string", placeholder: "1d8" },
+    { key: "type", label: "Type", type: "string", placeholder: "slashing" },
+  ],
+  armor: [
+    { key: "name", label: "Name", type: "string", placeholder: "Chain Mail" },
+    { key: "ac", label: "AC", type: "number", placeholder: "16" },
+    { key: "type", label: "Type", type: "string", placeholder: "heavy" },
+  ],
+  items: [
+    { key: "name", label: "Name", type: "string", placeholder: "Potion of Healing" },
+    { key: "rarity", label: "Rarity", type: "string", placeholder: "common" },
+  ],
+  levelUpCriteria: [
+    { key: "method", label: "Method", type: "string", placeholder: "xp" },
+    { key: "milestones", label: "Milestones", type: "boolean", placeholder: "false" },
+  ],
+  levelUpEffects: [
+    { key: "hpIncrease", label: "HP Increase", type: "string", placeholder: "classHitDie" },
+    { key: "proficiencyAt", label: "Proficiency At", type: "stringArray", placeholder: "5, 9, 13, 17" },
+  ],
+};
+
 export default function SystemDetailPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -223,11 +307,12 @@ export default function SystemDetailPage() {
   const [wizardStep, setWizardStep] = useState(1);
   const [savingWizard, setSavingWizard] = useState(false);
   const [wizardBlock, setWizardBlock] = useState<(typeof BLOCKS)[number] | null>(null);
+  const [wizardVariables, setWizardVariables] = useState<WizardVariable[]>([]);
+  const [nextVariableId, setNextVariableId] = useState(1);
   const [wizardDraft, setWizardDraft] = useState<WizardDraft>({
     title: "",
     summary: "",
     tags: "",
-    dataJson: "",
   });
 
   // Form state
@@ -313,6 +398,9 @@ export default function SystemDetailPage() {
     const currentValue = system[block.key];
     setWizardBlock(block);
     setWizardDraft(buildDraftFromValue(block.label, currentValue));
+    const initialVariables = buildVariablesFromValue(block.key, currentValue);
+    setWizardVariables(initialVariables);
+    setNextVariableId(initialVariables.length + 1);
     setWizardStep(1);
     setWizardOpen(true);
     setError("");
@@ -325,11 +413,13 @@ export default function SystemDetailPage() {
     }
 
     if (mode === "blank") {
-      setWizardDraft({ title: wizardBlock.label, summary: "", tags: "", dataJson: "" });
+      setWizardDraft({ title: wizardBlock.label, summary: "", tags: "" });
+      setWizardVariables([]);
     }
 
     if (mode === "current") {
       setWizardDraft(buildDraftFromValue(wizardBlock.label, system[wizardBlock.key]));
+      setWizardVariables(buildVariablesFromValue(wizardBlock.key, system[wizardBlock.key]));
     }
 
     if (mode === "template") {
@@ -337,11 +427,70 @@ export default function SystemDetailPage() {
         title: wizardBlock.label,
         summary: `Starter template for ${wizardBlock.label.toLowerCase()}`,
         tags: "",
-        dataJson: formatJson(wizardBlock.template),
       });
+      setWizardVariables(buildVariablesFromValue(wizardBlock.key, wizardBlock.template));
     }
 
+    setNextVariableId((prev) => prev + 100);
+
     setWizardStep(2);
+  }
+
+  function handleAddVariable(group: number) {
+    if (!wizardBlock) {
+      return;
+    }
+
+    const firstOption = BLOCK_VARIABLE_OPTIONS[wizardBlock.key][0];
+    setWizardVariables((prev) => [
+      ...prev,
+      {
+        id: `v-${nextVariableId}`,
+        key: firstOption?.key || "",
+        type: firstOption?.type || "string",
+        value: "",
+        group,
+      },
+    ]);
+    setNextVariableId((prev) => prev + 1);
+  }
+
+  function handleUpdateVariable(variableId: string, patch: Partial<WizardVariable>) {
+    setWizardVariables((prev) =>
+      prev.map((variable) =>
+        variable.id === variableId ? { ...variable, ...patch } : variable
+      )
+    );
+  }
+
+  function handleRemoveVariable(variableId: string) {
+    setWizardVariables((prev) => prev.filter((variable) => variable.id !== variableId));
+  }
+
+  function handleAddListItem() {
+    if (!wizardBlock) {
+      return;
+    }
+
+    const groups = wizardVariables.map((variable) => variable.group);
+    const nextGroup = groups.length > 0 ? Math.max(...groups) + 1 : 0;
+    const firstOption = BLOCK_VARIABLE_OPTIONS[wizardBlock.key][0];
+
+    setWizardVariables((prev) => [
+      ...prev,
+      {
+        id: `v-${nextVariableId}`,
+        key: firstOption?.key || "",
+        type: firstOption?.type || "string",
+        value: "",
+        group: nextGroup,
+      },
+    ]);
+    setNextVariableId((prev) => prev + 1);
+  }
+
+  function handleRemoveListItem(group: number) {
+    setWizardVariables((prev) => prev.filter((variable) => variable.group !== group));
   }
 
   async function handleWizardSave() {
@@ -352,7 +501,7 @@ export default function SystemDetailPage() {
     setError("");
     setSuccessMessage("");
 
-    const parsedData = parseJsonOrNull(wizardBlock.label, wizardDraft.dataJson);
+    const parsedData = parseVariablesToValue(wizardBlock.key, wizardVariables);
     if (parsedData.error) {
       setError(parsedData.error);
       setWizardStep(2);
@@ -680,7 +829,7 @@ export default function SystemDetailPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1 text-zinc-900 dark:text-zinc-100">
-                      Structured Data (JSON)
+                      Variables
                     </label>
                     <div className="mb-2 rounded border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">
                       <p className="font-semibold mb-1">Hints for {wizardBlock.label}</p>
@@ -690,13 +839,78 @@ export default function SystemDetailPage() {
                         ))}
                       </ul>
                     </div>
-                    <textarea
-                      value={wizardDraft.dataJson}
-                      onChange={(e) => setWizardDraft((prev) => ({ ...prev, dataJson: e.target.value }))}
-                      rows={10}
-                      placeholder='Example: {"key": "value"}'
-                      className="w-full rounded border border-zinc-300 px-3 py-2 text-xs font-mono dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-                    />
+
+                    {LIST_BLOCKS.has(wizardBlock.key) ? (
+                      <div className="space-y-3">
+                        {Array.from(new Set(wizardVariables.map((variable) => variable.group)))
+                          .sort((a, b) => a - b)
+                          .map((group, index) => {
+                            const groupVariables = wizardVariables.filter((variable) => variable.group === group);
+                            return (
+                              <div
+                                key={`group-${group}`}
+                                className="rounded border border-zinc-200 p-3 dark:border-zinc-800"
+                              >
+                                <div className="flex items-center justify-between mb-3">
+                                  <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                                    Item {index + 1}
+                                  </p>
+                                  <button
+                                    onClick={() => handleRemoveListItem(group)}
+                                    className="rounded border border-red-300 px-2 py-1 text-[10px] text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-200 dark:hover:bg-red-950"
+                                  >
+                                    Remove Item
+                                  </button>
+                                </div>
+                                <div className="space-y-2">
+                                  {groupVariables.map((variable) => (
+                                    <VariableRowEditor
+                                      key={variable.id}
+                                      variable={variable}
+                                      options={BLOCK_VARIABLE_OPTIONS[wizardBlock.key]}
+                                      onUpdate={handleUpdateVariable}
+                                      onRemove={handleRemoveVariable}
+                                    />
+                                  ))}
+                                </div>
+                                <button
+                                  onClick={() => handleAddVariable(group)}
+                                  className="mt-3 rounded border border-zinc-300 px-3 py-2 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                >
+                                  + Add Variable to Item
+                                </button>
+                              </div>
+                            );
+                          })}
+
+                        <button
+                          onClick={handleAddListItem}
+                          className="rounded bg-zinc-900 px-3 py-2 text-xs font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-100"
+                        >
+                          + Add Item
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {wizardVariables
+                          .filter((variable) => variable.group === 0)
+                          .map((variable) => (
+                            <VariableRowEditor
+                              key={variable.id}
+                              variable={variable}
+                              options={BLOCK_VARIABLE_OPTIONS[wizardBlock.key]}
+                              onUpdate={handleUpdateVariable}
+                              onRemove={handleRemoveVariable}
+                            />
+                          ))}
+                        <button
+                          onClick={() => handleAddVariable(0)}
+                          className="rounded border border-zinc-300 px-3 py-2 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                        >
+                          + Add Variable
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-3">
                     <button
@@ -729,7 +943,7 @@ export default function SystemDetailPage() {
                       <strong>Tags:</strong> {wizardDraft.tags || "(none)"}
                     </p>
                     <pre className="mt-3 overflow-x-auto rounded bg-zinc-100 p-3 text-xs dark:bg-zinc-900 dark:text-zinc-100">
-{wizardDraft.dataJson.trim() || "(no structured data)"}
+{formatJson(parseVariablesToValue(wizardBlock.key, wizardVariables).value) || "(no structured data)"}
                     </pre>
                   </div>
                   <div className="flex gap-3">
@@ -785,6 +999,93 @@ function parseJsonOrNull(sectionLabel: string, input: string) {
   }
 }
 
+function parseVariableValue(variable: WizardVariable) {
+  const trimmed = variable.value.trim();
+  if (!trimmed) {
+    return { value: null as unknown, error: null as string | null };
+  }
+
+  if (variable.type === "string") {
+    return { value: variable.value, error: null as string | null };
+  }
+
+  if (variable.type === "number") {
+    const parsed = Number(trimmed);
+    if (Number.isNaN(parsed)) {
+      return { value: null as unknown, error: `Variable \"${variable.key}\" must be a valid number.` };
+    }
+    return { value: parsed, error: null as string | null };
+  }
+
+  if (variable.type === "boolean") {
+    return { value: trimmed === "true", error: null as string | null };
+  }
+
+  if (variable.type === "stringArray") {
+    return {
+      value: variable.value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+      error: null as string | null,
+    };
+  }
+
+  try {
+    return { value: JSON.parse(trimmed), error: null as string | null };
+  } catch {
+    return {
+      value: null as unknown,
+      error: `Variable \"${variable.key}\" contains invalid JSON.`,
+    };
+  }
+}
+
+function parseVariablesToValue(blockKey: BlockKey, variables: WizardVariable[]) {
+  const validVariables = variables.filter((variable) => variable.key.trim());
+  if (validVariables.length === 0) {
+    return { value: null as unknown, error: null as string | null };
+  }
+
+  if (LIST_BLOCKS.has(blockKey)) {
+    const groups = Array.from(new Set(validVariables.map((variable) => variable.group))).sort((a, b) => a - b);
+    const list: Record<string, unknown>[] = [];
+
+    for (const group of groups) {
+      const groupVariables = validVariables.filter((variable) => variable.group === group);
+      const item: Record<string, unknown> = {};
+
+      for (const variable of groupVariables) {
+        const parsed = parseVariableValue(variable);
+        if (parsed.error) {
+          return { value: null as unknown, error: parsed.error };
+        }
+        item[variable.key.trim()] = parsed.value;
+      }
+
+      if (Object.keys(item).length > 0) {
+        list.push(item);
+      }
+    }
+
+    return { value: list.length > 0 ? list : null, error: null as string | null };
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const variable of validVariables) {
+    const parsed = parseVariableValue(variable);
+    if (parsed.error) {
+      return { value: null as unknown, error: parsed.error };
+    }
+    result[variable.key.trim()] = parsed.value;
+  }
+
+  return {
+    value: Object.keys(result).length > 0 ? result : null,
+    error: null as string | null,
+  };
+}
+
 function buildDraftFromValue(defaultTitle: string, value: unknown): WizardDraft {
   if (
     value &&
@@ -803,7 +1104,6 @@ function buildDraftFromValue(defaultTitle: string, value: unknown): WizardDraft 
       title: obj.title || defaultTitle,
       summary: obj.summary || "",
       tags: Array.isArray(obj.tags) ? obj.tags.join(", ") : "",
-      dataJson: formatJson(obj.data),
     };
   }
 
@@ -812,7 +1112,6 @@ function buildDraftFromValue(defaultTitle: string, value: unknown): WizardDraft 
       title: defaultTitle,
       summary: "",
       tags: "",
-      dataJson: "",
     };
   }
 
@@ -820,8 +1119,94 @@ function buildDraftFromValue(defaultTitle: string, value: unknown): WizardDraft 
     title: defaultTitle,
     summary: "",
     tags: "",
-    dataJson: formatJson(value),
   };
+}
+
+function buildVariablesFromValue(blockKey: BlockKey, value: unknown): WizardVariable[] {
+  const dataSource =
+    value && typeof value === "object" && !Array.isArray(value) && "data" in (value as Record<string, unknown>)
+      ? (value as Record<string, unknown>).data
+      : value;
+
+  const options = BLOCK_VARIABLE_OPTIONS[blockKey];
+  let idCounter = 1;
+
+  if (LIST_BLOCKS.has(blockKey)) {
+    if (!Array.isArray(dataSource)) {
+      return [];
+    }
+
+    return dataSource.flatMap((item, group) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        return [];
+      }
+
+      return Object.entries(item).map(([key, rawValue]) => {
+        const option = options.find((entry) => entry.key === key);
+        const type = option?.type || inferVariableType(rawValue);
+        const variable: WizardVariable = {
+          id: `v-${idCounter++}`,
+          key,
+          type,
+          value: valueToInputString(rawValue, type),
+          group,
+        };
+        return variable;
+      });
+    });
+  }
+
+  if (!dataSource || typeof dataSource !== "object" || Array.isArray(dataSource)) {
+    return [];
+  }
+
+  return Object.entries(dataSource).map(([key, rawValue]) => {
+    const option = options.find((entry) => entry.key === key);
+    const type = option?.type || inferVariableType(rawValue);
+    return {
+      id: `v-${idCounter++}`,
+      key,
+      type,
+      value: valueToInputString(rawValue, type),
+      group: 0,
+    };
+  });
+}
+
+function inferVariableType(value: unknown): VariableType {
+  if (typeof value === "number") {
+    return "number";
+  }
+  if (typeof value === "boolean") {
+    return "boolean";
+  }
+  if (Array.isArray(value) && value.every((item) => typeof item === "string")) {
+    return "stringArray";
+  }
+  if (typeof value === "object" && value !== null) {
+    return "json";
+  }
+  return "string";
+}
+
+function valueToInputString(value: unknown, type: VariableType) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (type === "boolean") {
+    return value ? "true" : "false";
+  }
+
+  if (type === "stringArray" && Array.isArray(value)) {
+    return value.join(", ");
+  }
+
+  if (type === "json") {
+    return formatJson(value);
+  }
+
+  return String(value);
 }
 
 function RuleSection({
@@ -894,6 +1279,139 @@ function RuleSection({
       )}
     </div>
   );
+}
+
+function VariableRowEditor({
+  variable,
+  options,
+  onUpdate,
+  onRemove,
+}: {
+  variable: WizardVariable;
+  options: VariableOption[];
+  onUpdate: (variableId: string, patch: Partial<WizardVariable>) => void;
+  onRemove: (variableId: string) => void;
+}) {
+  const selectedOption = options.find((option) => option.key === variable.key);
+  const isCustom = !selectedOption;
+  const placeholder = selectedOption?.placeholder || getTypePlaceholder(variable.type);
+
+  return (
+    <div className="rounded border border-zinc-200 p-2 dark:border-zinc-800">
+      <div className="grid gap-2 md:grid-cols-4">
+        <div>
+          <label className="block text-[10px] uppercase text-zinc-500 mb-1">Variable</label>
+          <select
+            value={isCustom ? "__custom" : variable.key}
+            onChange={(e) => {
+              if (e.target.value === "__custom") {
+                onUpdate(variable.id, { key: "", type: variable.type });
+                return;
+              }
+
+              const option = options.find((entry) => entry.key === e.target.value);
+              onUpdate(variable.id, {
+                key: option?.key || e.target.value,
+                type: option?.type || "string",
+              });
+            }}
+            className="w-full rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+          >
+            {options.map((option) => (
+              <option key={option.key} value={option.key}>
+                {option.label}
+              </option>
+            ))}
+            <option value="__custom">Custom...</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-[10px] uppercase text-zinc-500 mb-1">Key</label>
+          <input
+            value={variable.key}
+            onChange={(e) => onUpdate(variable.id, { key: e.target.value })}
+            className="w-full rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            placeholder="variableName"
+          />
+        </div>
+
+        <div>
+          <label className="block text-[10px] uppercase text-zinc-500 mb-1">Type</label>
+          <select
+            value={variable.type}
+            onChange={(e) => onUpdate(variable.id, { type: e.target.value as VariableType })}
+            className="w-full rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+          >
+            <option value="string">Text</option>
+            <option value="number">Number</option>
+            <option value="boolean">Boolean</option>
+            <option value="stringArray">Text Array</option>
+            <option value="json">JSON</option>
+          </select>
+        </div>
+
+        <div className="flex items-end">
+          <button
+            onClick={() => onRemove(variable.id)}
+            className="w-full rounded border border-red-300 px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-200 dark:hover:bg-red-950"
+          >
+            Remove
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-2">
+        <label className="block text-[10px] uppercase text-zinc-500 mb-1">Value</label>
+        {selectedOption?.placeholder && (
+          <p className="mb-1 text-[10px] text-zinc-500 dark:text-zinc-400">
+            Suggestion: {selectedOption.placeholder}
+          </p>
+        )}
+        {variable.type === "boolean" ? (
+          <select
+            value={variable.value || "false"}
+            onChange={(e) => onUpdate(variable.id, { value: e.target.value })}
+            className="w-full rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+          >
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>
+        ) : variable.type === "json" ? (
+          <textarea
+            value={variable.value}
+            onChange={(e) => onUpdate(variable.id, { value: e.target.value })}
+            rows={3}
+            className="w-full rounded border border-zinc-300 px-2 py-1 text-xs font-mono dark:border-zinc-700 dark:bg-zinc-900"
+            placeholder={placeholder}
+          />
+        ) : (
+          <input
+            value={variable.value}
+            onChange={(e) => onUpdate(variable.id, { value: e.target.value })}
+            className="w-full rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            placeholder={placeholder}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function getTypePlaceholder(type: VariableType) {
+  if (type === "number") {
+    return "42";
+  }
+  if (type === "boolean") {
+    return "true or false";
+  }
+  if (type === "stringArray") {
+    return "item1, item2, item3";
+  }
+  if (type === "json") {
+    return '{"key":"value"}';
+  }
+  return "value";
 }
 
 function getBlockPreview(value: unknown) {
