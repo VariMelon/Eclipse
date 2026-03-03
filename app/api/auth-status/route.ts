@@ -2,35 +2,57 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
 async function checkEmailVerificationColumns() {
-  const rows = await prisma.$queryRaw<
-    { column_name: string }[]
-  >`
-    SELECT column_name
-    FROM information_schema.columns
-    WHERE table_schema = 'public'
-      AND table_name = 'User'
-      AND column_name IN ('emailVerified', 'emailVerificationToken', 'emailVerificationExpires')
-  `;
+  try {
+    const rows = await prisma.$queryRaw<
+      { column_name: string }[]
+    >`
+      SELECT column_name::text AS column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'User'
+        AND column_name IN ('emailVerified', 'emailVerificationToken', 'emailVerificationExpires')
+    `;
 
-  const columns = new Set(rows.map((row) => row.column_name));
-  return {
-    emailVerified: columns.has("emailVerified"),
-    emailVerificationToken: columns.has("emailVerificationToken"),
-    emailVerificationExpires: columns.has("emailVerificationExpires"),
-  };
+    const columns = new Set(rows.map((row) => row.column_name));
+    return {
+      emailVerified: columns.has("emailVerified"),
+      emailVerificationToken: columns.has("emailVerificationToken"),
+      emailVerificationExpires: columns.has("emailVerificationExpires"),
+      error: null as string | null,
+    };
+  } catch (error) {
+    console.error("auth-status email column check failed", error);
+    return {
+      emailVerified: false,
+      emailVerificationToken: false,
+      emailVerificationExpires: false,
+      error: "emailVerificationColumns",
+    };
+  }
 }
 
 async function checkPasswordResetTable() {
-  const rows = await prisma.$queryRaw<
-    { table_name: string }[]
-  >`
-    SELECT table_name
-    FROM information_schema.tables
-    WHERE table_schema = 'public'
-      AND table_name = 'PasswordReset'
-  `;
+  try {
+    const rows = await prisma.$queryRaw<
+      { table_name: string }[]
+    >`
+      SELECT table_name::text AS table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name = 'PasswordReset'
+    `;
 
-  return rows.length > 0;
+    return {
+      exists: rows.length > 0,
+      error: null as string | null,
+    };
+  } catch (error) {
+    console.error("auth-status password reset table check failed", error);
+    return {
+      exists: false,
+      error: "passwordResetTable",
+    };
+  }
 }
 
 export async function GET() {
@@ -48,8 +70,13 @@ export async function GET() {
     return NextResponse.json({
       smtpConfigured,
       nextauthUrlConfigured,
-      emailVerificationColumns: emailColumns,
-      passwordResetTable,
+      emailVerificationColumns: {
+        emailVerified: emailColumns.emailVerified,
+        emailVerificationToken: emailColumns.emailVerificationToken,
+        emailVerificationExpires: emailColumns.emailVerificationExpires,
+      },
+      passwordResetTable: passwordResetTable.exists,
+      warnings: [emailColumns.error, passwordResetTable.error].filter(Boolean),
     });
   } catch (error) {
     console.error("auth-status error", error);

@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 export default function SignInPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -16,10 +15,11 @@ export default function SignInPage() {
   const [forgotLoading, setForgotLoading] = useState(false);
 
   useEffect(() => {
-    if (searchParams.get("verified") === "true") {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("verified") === "true") {
       setSuccessMessage("Email verified! You can now sign in.");
     }
-  }, [searchParams]);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

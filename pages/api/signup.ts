@@ -114,6 +114,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const verificationUrl = `${baseUrl}/api/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
     await sendVerificationEmail(email, verificationUrl);
   } catch (error) {
+    console.error("signup verification email failed", error);
     await prisma.user.delete({ where: { id: user.id } });
     return res.status(500).json({ error: 'Failed to send verification email. Please try again.' });
   }

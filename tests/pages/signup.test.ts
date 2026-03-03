@@ -12,12 +12,14 @@ const {
   getNodeRequestIpMock,
   normalizeIdentifierMock,
   hashMock,
+  sendVerificationEmailMock,
 } = vi.hoisted(() => ({
   prismaMock: {
     user: {
       findUnique: vi.fn(),
       findFirst: vi.fn(),
       create: vi.fn(),
+      delete: vi.fn(),
     },
   },
   validateUserInputMock: vi.fn(),
@@ -28,6 +30,7 @@ const {
   getNodeRequestIpMock: vi.fn(),
   normalizeIdentifierMock: vi.fn(),
   hashMock: vi.fn(),
+  sendVerificationEmailMock: vi.fn(),
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -51,6 +54,10 @@ vi.mock('bcryptjs', () => ({
   default: {
     hash: hashMock,
   },
+}));
+
+vi.mock('@/lib/email', () => ({
+  sendVerificationEmail: sendVerificationEmailMock,
 }));
 
 import handler from '@/pages/api/signup';
@@ -81,7 +88,9 @@ describe('pages/api/signup', () => {
       email: 'new@example.com',
       name: 'newuser',
     });
+    prismaMock.user.delete.mockResolvedValue({ id: 'user-1' });
     hashMock.mockResolvedValue('hashed-password');
+    sendVerificationEmailMock.mockResolvedValue(undefined);
   });
 
   it('creates a user on valid POST payload', async () => {

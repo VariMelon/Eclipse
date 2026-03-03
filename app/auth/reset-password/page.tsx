@@ -1,17 +1,31 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
 export default function ResetPasswordPage() {
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token");
+  const [token, setToken] = useState<string | null>(null);
+  const [tokenChecked, setTokenChecked] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setToken(params.get("token"));
+    setTokenChecked(true);
+  }, []);
+
+  if (!tokenChecked) {
+    return (
+      <div style={{ maxWidth: 400, margin: "auto", padding: "2rem" }}>
+        <h1>Reset Password</h1>
+        <p>Loading...</p>
+      </div>
+    );
+  }
 
   if (!token) {
     return (
