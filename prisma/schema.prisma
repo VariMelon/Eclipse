@@ -27,6 +27,7 @@ model User {
   characters      Character[]
   notes           Note[]
   systems         System[]         @relation("SystemCreator")
+  favoriteSystems SystemFavorite[]
   passwordResets  PasswordReset[]
 
   // Friends relations with explicit names
@@ -193,6 +194,7 @@ model System {
   id          String   @id @default(uuid())
   name        String   @unique
   description String?
+  tags        Json? // Array of discoverability tags for this system
 
   // Core game mechanics stored as JSON for flexibility
   diceSystem   Json? // e.g., {"types": ["d4", "d6", "d8", "d10", "d12", "d20", "d100"], "default": "d20"}
@@ -206,11 +208,19 @@ model System {
   // Game content (all arrays of objects)
   races   Json? // Array of race objects with stats, abilities, etc.
   classes Json? // Array of class objects with progressions, features
+  skills Json? // Array of skill definitions with modifier stat mapping
   backgrounds Json? // Array of background objects with resources and traits
+  currencies Json? // Array of currency objects (e.g., Gold, Silver)
+  features Json? // Array of feature definitions
+  featuresClass Json? // Array of class feature definitions
+  featuresRace Json? // Array of race feature definitions
+  tools Json? // Array of tool definitions (e.g., lockpick kit)
+  magicApplications Json? // Array of magic entries categorized by application
   spells  Json? // Array of spell objects
   weapons Json? // Array of weapon objects with damage, properties
   armor   Json? // Array of armor objects with AC, properties
   items   Json? // Array of general item objects
+  crossSystemDefinitions Json? // Shared cross-system terms and compatibility definitions
 
   // Character stats and progression
   statBlocks      Json? // Definition of stats (e.g., STR, DEX, CON, INT, WIS, CHA)
@@ -224,6 +234,19 @@ model System {
   updatedAt DateTime @updatedAt
 
   creator   User       @relation("SystemCreator", fields: [createdBy], references: [id])
+  favorites SystemFavorite[]
   campaigns Campaign[]
   characters Character[]
+}
+
+model SystemFavorite {
+  id        String   @id @default(uuid())
+  userId    String
+  systemId  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  system System @relation(fields: [systemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, systemId])
 }

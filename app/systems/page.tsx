@@ -2,8 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -11,8 +10,11 @@ interface System {
   id: string;
   name: string;
   description: string | null;
+  tags: unknown;
   isPublic: boolean;
   createdAt: string;
+  updatedAt: string;
+  isFavorited: boolean;
   creator: {
     id: string;
     name: string;
@@ -22,16 +24,33 @@ interface System {
   };
 }
 
+function parseTags(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString();
+}
+
 export default function SystemsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [systems, setSystems] = useState<System[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [systemName, setSystemName] = useState("");
   const [systemDescription, setSystemDescription] = useState("");
   const [isPublic, setIsPublic] = useState(false);
   const [error, setError] = useState("");
+  const [favoriteLoadingById, setFavoriteLoadingById] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -88,7 +107,7 @@ export default function SystemsPage() {
         const data = await response.json();
         setError(data.message || "Failed to create system");
       }
-    } catch (error) {
+    } catch {
       setError("Failed to create system");
     }
   }
@@ -109,9 +128,147 @@ export default function SystemsPage() {
         const data = await response.json();
         alert(data.message || "Failed to delete system");
       }
-    } catch (error) {
+    } catch {
       alert("Failed to delete system");
     }
+  }
+
+  async function handleToggleFavorite(systemId: string, nextValue: boolean) {
+    setFavoriteLoadingById((prev) => ({ ...prev, [systemId]: true }));
+    try {
+      const response = await fetch(`/api/systems/${systemId}/favorite`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ favorite: nextValue }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        setError(data.message || "Failed to update favorite");
+        return;
+      }
+
+      setSystems((prev) =>
+        prev.map((system) =>
+          system.id === systemId ? { ...system, isFavorited: nextValue } : system
+        )
+      );
+    } catch {
+      setError("Failed to update favorite");
+    } finally {
+      setFavoriteLoadingById((prev) => ({ ...prev, [systemId]: false }));
+    }
+  }
+
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+
+  const filteredSystems = useMemo(() => {
+    if (!normalizedQuery) {
+      return systems;
+    }
+
+    return systems.filter((system) => {
+      const tags = parseTags(system.tags);
+      return (
+        system.name.toLowerCase().includes(normalizedQuery) ||
+        (system.description || "").toLowerCase().includes(normalizedQuery) ||
+        tags.some((tag) => tag.toLowerCase().includes(normalizedQuery))
+      );
+    });
+  }, [systems, normalizedQuery]);
+
+  const favoriteSystems = filteredSystems.filter((s) => s.isFavorited);
+  const ownedSystems = session
+    ? filteredSystems.filter((s) => s.creator.id === session.user.id)
+    : [];
+  const publicSystems = session
+    ? filteredSystems.filter((s) => s.creator.id !== session.user.id)
+    : [];
+
+  function SystemCard({ system, ownerView }: { system: System; ownerView: boolean }) {
+    const tags = parseTags(system.tags);
+
+    return (
+      <div className="rounded-lg border border-zinc-200 bg-white p-4 md:p-6 hover:shadow-md transition dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start gap-2">
+              <button
+                type="button"
+                onClick={() => handleToggleFavorite(system.id, !system.isFavorited)}
+                disabled={favoriteLoadingById[system.id]}
+                className={`mt-0.5 text-lg leading-none transition ${
+                  system.isFavorited
+                    ? "text-amber-500"
+                    : "text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+                } disabled:opacity-60`}
+                aria-label={system.isFavorited ? "Remove from favorites" : "Add to favorites"}
+                title={system.isFavorited ? "Remove from favorites" : "Add to favorites"}
+              >
+                {system.isFavorited ? "★" : "☆"}
+              </button>
+              <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+                {system.name}
+              </h3>
+            </div>
+
+            {system.description && (
+              <p className="mt-2 text-zinc-600 dark:text-zinc-400">{system.description}</p>
+            )}
+
+            {tags.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {tags.slice(0, 6).map((tag) => (
+                  <span
+                    key={`${system.id}-${tag}`}
+                    className="rounded-full border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={() => router.push(`/systems/${system.id}`)}
+              className={`${
+                ownerView ? "bg-blue-600 hover:bg-blue-700" : "bg-zinc-600 hover:bg-zinc-700"
+              } rounded-lg text-white px-4 py-2 text-sm transition`}
+            >
+              {ownerView ? "Edit" : "View"}
+            </button>
+            {ownerView && (
+              <button
+                onClick={() => handleDeleteSystem(system.id)}
+                className="rounded-lg bg-red-600 text-white px-4 py-2 text-sm hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={system._count.campaigns > 0}
+                title={
+                  system._count.campaigns > 0
+                    ? "Cannot delete system used by campaigns"
+                    : "Delete system"
+                }
+              >
+                Delete
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 border-t border-zinc-200 pt-3 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            <span>{system.isPublic ? "Public" : "Private"}</span>
+            <span>
+              {system._count.campaigns} campaign{system._count.campaigns !== 1 ? "s" : ""}
+            </span>
+            {!ownerView && <span>By {system.creator.name}</span>}
+            <span>Created {formatDate(system.createdAt)}</span>
+            <span>Updated {formatDate(system.updatedAt)}</span>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (status === "loading" || loading) {
@@ -131,13 +288,9 @@ export default function SystemsPage() {
     );
   }
 
-  const ownedSystems = session ? systems.filter((s) => s.creator.id === session.user.id) : [];
-  const publicSystems = session ? systems.filter((s) => s.creator.id !== session.user.id) : [];
-
   return (
     <div className="min-h-[calc(100vh-73px)] bg-zinc-50 dark:bg-black px-6 py-10">
       <main className="mx-auto w-full max-w-6xl">
-        {/* Header */}
         <div className="flex items-start justify-between mb-10">
           <div>
             <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
@@ -147,12 +300,16 @@ export default function SystemsPage() {
               Create and manage game systems for your campaigns
             </p>
           </div>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="rounded-lg bg-zinc-900 px-6 py-2 text-sm font-semibold text-white hover:bg-zinc-800 transition dark:bg-white dark:text-black dark:hover:bg-zinc-100"
-          >
-            Create System
-          </button>
+        </div>
+
+        <div className="mb-6">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+            placeholder="Search systems by title, description, or tags"
+          />
         </div>
 
         {error && (
@@ -161,76 +318,50 @@ export default function SystemsPage() {
           </div>
         )}
 
-        {/* Owned Systems */}
+        {favoriteSystems.length > 0 && (
+          <div className="mb-10">
+            <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
+              Favorites
+            </h2>
+            <div className="grid gap-4">
+              {favoriteSystems.map((system) => (
+                <SystemCard
+                  key={`favorite-${system.id}`}
+                  system={system}
+                  ownerView={system.creator.id === session?.user.id}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="mb-10">
-          <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
-            Your Systems
-          </h2>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+              Your Systems
+            </h2>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 transition dark:bg-white dark:text-black dark:hover:bg-zinc-100"
+            >
+              Create System
+            </button>
+          </div>
           {ownedSystems.length === 0 ? (
             <div className="rounded-lg border border-zinc-200 bg-white p-8 text-center dark:border-zinc-800 dark:bg-zinc-950">
               <p className="text-zinc-600 dark:text-zinc-400">
-                No systems created yet. Create your first system to get started!
+                No systems found.
               </p>
             </div>
           ) : (
             <div className="grid gap-4">
               {ownedSystems.map((system) => (
-                <div
-                  key={system.id}
-                  className="rounded-lg border border-zinc-200 bg-white p-6 hover:shadow-md transition dark:border-zinc-800 dark:bg-zinc-950"
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                          {system.name}
-                        </h3>
-                        {system.isPublic && (
-                          <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded dark:bg-green-900 dark:text-green-200">
-                            Public
-                          </span>
-                        )}
-                        <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded dark:bg-blue-900 dark:text-blue-200">
-                          {system._count.campaigns} campaign{system._count.campaigns !== 1 ? "s" : ""}
-                        </span>
-                      </div>
-                      {system.description && (
-                        <p className="text-zinc-600 dark:text-zinc-400 mb-2">
-                          {system.description}
-                        </p>
-                      )}
-                      <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                        Created {new Date(system.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => router.push(`/systems/${system.id}`)}
-                        className="rounded-lg bg-blue-600 text-white px-4 py-2 text-sm hover:bg-blue-700 transition"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteSystem(system.id)}
-                        className="rounded-lg bg-red-600 text-white px-4 py-2 text-sm hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={system._count.campaigns > 0}
-                        title={
-                          system._count.campaigns > 0
-                            ? "Cannot delete system used by campaigns"
-                            : "Delete system"
-                        }
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <SystemCard key={system.id} system={system} ownerView />
               ))}
             </div>
           )}
         </div>
 
-        {/* Public Systems */}
         {publicSystems.length > 0 && (
           <div>
             <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
@@ -238,44 +369,12 @@ export default function SystemsPage() {
             </h2>
             <div className="grid gap-4">
               {publicSystems.map((system) => (
-                <div
-                  key={system.id}
-                  className="rounded-lg border border-zinc-200 bg-white p-6 hover:shadow-md transition dark:border-zinc-800 dark:bg-zinc-950"
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                          {system.name}
-                        </h3>
-                        <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded dark:bg-blue-900 dark:text-blue-200">
-                          {system._count.campaigns} campaign{system._count.campaigns !==1 ? "s" : ""}
-                        </span>
-                      </div>
-                      {system.description && (
-                        <p className="text-zinc-600 dark:text-zinc-400 mb-2">
-                          {system.description}
-                        </p>
-                      )}
-                      <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                        By {system.creator.name} • Created{" "}
-                        {new Date(system.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => router.push(`/systems/${system.id}`)}
-                      className="rounded-lg bg-zinc-600 text-white px-4 py-2 text-sm hover:bg-zinc-700 transition"
-                    >
-                      View
-                    </button>
-                  </div>
-                </div>
+                <SystemCard key={system.id} system={system} ownerView={false} />
               ))}
             </div>
           </div>
         )}
 
-        {/* Create System Modal */}
         {showCreateModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white dark:bg-zinc-900 rounded-lg p-6 max-w-md w-full">

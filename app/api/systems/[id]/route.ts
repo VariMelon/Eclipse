@@ -2,6 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { validateSession } from "@/lib/apiAuth";
 import { validateUserInput } from "@/lib/inputValidation";
+import { mergeSystemResources } from "@/lib/systemResourceMerge";
+
+function sanitizeTags(rawTags: unknown): string[] {
+  if (!Array.isArray(rawTags)) {
+    return [];
+  }
+
+  return rawTags
+    .filter((tag): tag is string => typeof tag === "string")
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+    .filter((tag, index, list) => list.findIndex((candidate) => candidate.toLowerCase() === tag.toLowerCase()) === index)
+    .slice(0, 20);
+}
 
 // GET - Fetch a single system by ID
 export async function GET(
@@ -44,7 +58,8 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ system }, { status: 200 });
+    const mergedResources = mergeSystemResources(system as unknown as Record<string, unknown>);
+    return NextResponse.json({ system, mergedResources }, { status: 200 });
   } catch (error) {
     console.error("Error fetching system:", error);
     return NextResponse.json(
@@ -105,6 +120,19 @@ export async function PATCH(
       }
     }
 
+    if (body.tags !== undefined) {
+      const tags = sanitizeTags(body.tags);
+      for (const tag of tags) {
+        const tagValidation = validateUserInput(tag);
+        if (!tagValidation.ok) {
+          return NextResponse.json(
+            { message: tagValidation.error },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     // Update system
     const updatedSystem = await prisma.system.update({
       where: { id },
@@ -113,6 +141,7 @@ export async function PATCH(
         ...(body.description !== undefined && {
           description: body.description?.trim() || null,
         }),
+        ...(body.tags !== undefined && { tags: sanitizeTags(body.tags) }),
         ...(body.diceSystem !== undefined && { diceSystem: body.diceSystem }),
         ...(body.characterCreationRules !== undefined && {
           characterCreationRules: body.characterCreationRules,
@@ -128,17 +157,22 @@ export async function PATCH(
         }),
         ...(body.races !== undefined && { races: body.races }),
         ...(body.classes !== undefined && { classes: body.classes }),
+        ...(body.skills !== undefined && { skills: body.skills }),
         ...(body.backgrounds !== undefined && { backgrounds: body.backgrounds }),
+        ...(body.currencies !== undefined && { currencies: body.currencies }),
+        ...(body.features !== undefined && { features: body.features }),
+        ...(body.featuresClass !== undefined && { featuresClass: body.featuresClass }),
+        ...(body.featuresRace !== undefined && { featuresRace: body.featuresRace }),
+        ...(body.tools !== undefined && { tools: body.tools }),
+        ...(body.magicApplications !== undefined && { magicApplications: body.magicApplications }),
         ...(body.spells !== undefined && { spells: body.spells }),
         ...(body.weapons !== undefined && { weapons: body.weapons }),
         ...(body.armor !== undefined && { armor: body.armor }),
         ...(body.items !== undefined && { items: body.items }),
+        ...(body.crossSystemDefinitions !== undefined && { crossSystemDefinitions: body.crossSystemDefinitions }),
         ...(body.statBlocks !== undefined && { statBlocks: body.statBlocks }),
         ...(body.levelUpCriteria !== undefined && {
           levelUpCriteria: body.levelUpCriteria,
-        }),
-        ...(body.levelUpEffects !== undefined && {
-          levelUpEffects: body.levelUpEffects,
         }),
         ...(body.isPublic !== undefined && { isPublic: body.isPublic }),
       },

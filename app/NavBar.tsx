@@ -40,8 +40,7 @@ export default function NavBar() {
   }
 
   const navLinks = [
-    { href: "/", label: "Home" },
-    { href: "/friends", label: "Friends" },
+    { href: "/resources", label: "Resources" },
     { href: "/campaigns", label: "Campaigns" },
     { href: "/characters", label: "Characters" },
     { href: "/systems", label: "Systems" },
@@ -55,7 +54,7 @@ export default function NavBar() {
   return (
     <nav className="border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/70">
       <div className="mx-auto w-full max-w-7xl px-6 py-4">
-        <div className="flex items-center justify-between gap-4">
+        <div className="relative flex items-center justify-between gap-4">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 flex-shrink-0">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900 text-sm font-semibold text-white">
@@ -68,7 +67,7 @@ export default function NavBar() {
           </Link>
 
           {/* Center Navigation */}
-          <div className="hidden md:flex items-center gap-1">
+          <div className="hidden md:flex items-center gap-1 absolute left-1/2 -translate-x-1/2">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
@@ -85,7 +84,7 @@ export default function NavBar() {
           </div>
 
           {/* Right Section: User Menu or Auth */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-shrink-0">
             {session?.user ? (
               <div className="relative">
                 <button
@@ -128,6 +127,14 @@ export default function NavBar() {
                       className="block px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800"
                     >
                       My Info
+                    </Link>
+
+                    <Link
+                      href="/friends"
+                      onClick={() => setShowUserMenu(false)}
+                      className="block px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    >
+                      Friends
                     </Link>
 
                     {/* Password Reset */}
@@ -198,12 +205,12 @@ export default function NavBar() {
         </div>
 
         {/* Mobile Navigation */}
-        <div className="md:hidden mt-3 flex flex-wrap gap-2">
+        <div className="md:hidden mt-3 flex flex-wrap gap-1.5">
           {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className={`rounded-md px-3 py-2 text-xs font-medium transition ${
+              className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition ${
                 isActive(link.href)
                   ? "bg-zinc-900 text-white dark:bg-white dark:text-black"
                   : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-900"
